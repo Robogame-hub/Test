@@ -39,9 +39,10 @@ namespace TankGame.Tank.Components
         private ObjectPool<BulletComponent> bulletPool;
         private Transform bulletPoolParent;
         private float lastFireTime;
+        private bool isFiring; // Защита от двойного выстрела в одном кадре
 
         public Transform FirePoint => firePoint;
-        public bool CanFire => Time.time - lastFireTime >= fireCooldown;
+        public bool CanFire => Time.time - lastFireTime >= fireCooldown && !isFiring;
 
         private void Awake()
         {
@@ -86,8 +87,17 @@ namespace TankGame.Tank.Components
         /// </summary>
         public void Fire(float stability)
         {
+            // Защита от двойного выстрела
+            if (isFiring)
+            {
+                Debug.LogWarning("TankWeapon: Попытка двойного выстрела в одном кадре!");
+                return;
+            }
+            
             if (!CanFire || firePoint == null || bulletPool == null)
                 return;
+
+            isFiring = true;
 
             // Расчет разброса на основе стабильности
             float spread = Mathf.Lerp(maxSpreadAngle, minSpreadAngle, stability);
@@ -100,7 +110,10 @@ namespace TankGame.Tank.Components
             // Получаем пулю из пула
             BulletComponent bullet = bulletPool.Get();
             if (bullet == null)
+            {
+                isFiring = false;
                 return;
+            }
 
             // Настраиваем пулю
             bullet.transform.SetPositionAndRotation(
@@ -121,6 +134,15 @@ namespace TankGame.Tank.Components
             PlayMuzzleVFX();
 
             lastFireTime = Time.time;
+            
+            // Сбрасываем флаг в конце кадра
+            StartCoroutine(ResetFiringFlag());
+        }
+        
+        private System.Collections.IEnumerator ResetFiringFlag()
+        {
+            yield return new WaitForEndOfFrame();
+            isFiring = false;
         }
 
         private void PlayMuzzleVFX()

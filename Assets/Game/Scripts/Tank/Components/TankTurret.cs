@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Core;
+using TankGame.Settings;
 
 namespace TankGame.Tank.Components
 {
@@ -103,13 +104,16 @@ namespace TankGame.Tank.Components
             if (!isAiming)
                 return;
 
+            // Применяем чувствительность из настроек
+            Vector2 adjustedDelta = InputSettings.Instance.ApplySensitivity(mouseDelta);
+
             float totalMovement = 0f;
 
             // Вращение башни с сглаживанием
             if (turret != null)
             {
-                // Целевое вращение
-                float targetRotation = mouseDelta.x * turretRotationSpeed * Time.deltaTime;
+                // Целевое вращение с учетом чувствительности
+                float targetRotation = adjustedDelta.x * turretRotationSpeed * Time.deltaTime;
                 
                 // Плавное сглаживание
                 if (turretSmoothness > 0)
@@ -128,8 +132,8 @@ namespace TankGame.Tank.Components
             // Вращение пушки с сглаживанием
             if (cannon != null)
             {
-                // Целевое вращение
-                float targetRotation = mouseDelta.y * cannonRotationSpeed * Time.deltaTime;
+                // Целевое вращение с учетом чувствительности
+                float targetRotation = adjustedDelta.y * cannonRotationSpeed * Time.deltaTime;
                 
                 // Плавное сглаживание
                 if (cannonSmoothness > 0)

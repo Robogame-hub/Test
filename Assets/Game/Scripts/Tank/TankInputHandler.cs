@@ -9,9 +9,33 @@ namespace TankGame.Tank
     /// </summary>
     public class TankInputHandler : MonoBehaviour
     {
-        private Vector2 lastMousePosition;
+        [Header("Cursor Settings")]
+        [Tooltip("Скрывать курсор мыши в режиме игры")]
+        [SerializeField] private bool hideCursorInGame = true;
+        [Tooltip("Клавиша для показа/скрытия курсора (обычно Escape)")]
+        [SerializeField] private KeyCode toggleCursorKey = KeyCode.Escape;
+        
         private bool isAiming;
         private TankInputCommand lastCommand;
+        private bool isCursorLocked = true;
+
+        private void Start()
+        {
+            // Скрываем курсор при запуске если включена опция
+            if (hideCursorInGame)
+            {
+                LockCursor();
+            }
+        }
+
+        private void Update()
+        {
+            // Проверяем нажатие клавиши переключения курсора
+            if (Input.GetKeyDown(toggleCursorKey))
+            {
+                ToggleCursor();
+            }
+        }
 
         public TankInputCommand GetCurrentInput()
         {
@@ -22,7 +46,6 @@ namespace TankGame.Tank
             if (Input.GetMouseButtonDown(1))
             {
                 isAiming = true;
-                lastMousePosition = Input.mousePosition;
             }
 
             if (Input.GetMouseButtonUp(1))
@@ -31,11 +54,15 @@ namespace TankGame.Tank
             }
 
             // Расчет дельты мыши
+            // Используем Input.GetAxis для работы с заблокированным курсором
             Vector2 mouseDelta = Vector2.zero;
             if (isAiming)
             {
-                mouseDelta = (Vector2)Input.mousePosition - lastMousePosition;
-                lastMousePosition = Input.mousePosition;
+                // GetAxis("Mouse X/Y") работает независимо от состояния курсора
+                mouseDelta = new Vector2(
+                    Input.GetAxis("Mouse X"),
+                    Input.GetAxis("Mouse Y")
+                );
             }
 
             bool isFiring = isAiming && Input.GetMouseButtonDown(0);
@@ -46,6 +73,60 @@ namespace TankGame.Tank
 
         public bool IsAiming => isAiming;
         public TankInputCommand LastCommand => lastCommand;
+        
+        /// <summary>
+        /// Блокирует и скрывает курсор
+        /// </summary>
+        private void LockCursor()
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            isCursorLocked = true;
+        }
+        
+        /// <summary>
+        /// Разблокирует и показывает курсор
+        /// </summary>
+        private void UnlockCursor()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            isCursorLocked = false;
+        }
+        
+        /// <summary>
+        /// Переключает состояние курсора
+        /// </summary>
+        private void ToggleCursor()
+        {
+            if (isCursorLocked)
+            {
+                UnlockCursor();
+            }
+            else
+            {
+                LockCursor();
+            }
+        }
+        
+        /// <summary>
+        /// Принудительно скрывает курсор (для вызова из других скриптов)
+        /// </summary>
+        public void ForceLockCursor()
+        {
+            if (hideCursorInGame)
+            {
+                LockCursor();
+            }
+        }
+        
+        /// <summary>
+        /// Принудительно показывает курсор (для вызова из других скриптов)
+        /// </summary>
+        public void ForceUnlockCursor()
+        {
+            UnlockCursor();
+        }
     }
 }
 

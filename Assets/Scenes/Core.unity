@@ -1562,7 +1562,7 @@ Rigidbody:
   serializedVersion: 5
   m_Mass: 1.5
   m_LinearDamping: 0
-  m_AngularDamping: 0.05
+  m_AngularDamping: 0
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
@@ -1591,6 +1591,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a312bef29abe06449929f1646eefd7bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.TankInputHandler
+  hideCursorInGame: 1
+  toggleCursorKey: 27
 --- !u!114 &219749014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1674,8 +1676,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.Components.TankTurret
   turret: {fileID: 1299744116}
   turretRotationSpeed: 2
+  turretSmoothness: 8
   cannon: {fileID: 2058388500}
   cannonRotationSpeed: 3
+  cannonSmoothness: 8
   minCannonAngle: -10
   maxCannonAngle: 5
   crosshair: {fileID: 0}
@@ -1694,15 +1698,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d0e36bd85ed37dd42a887b4346c222d8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.Components.TankMovement
-  moveSpeed: 1
+  moveSpeed: 2
   rotationSpeed: 20
-  acceleration: 2
+  acceleration: 1
   deceleration: 3
   groundCheckDistance: 3
   groundAlignSpeed: 8
   groundMask:
     serializedVersion: 2
     m_Bits: 512
+  groundCheckFrequency: 1
   frontLeftPoint: {fileID: 417250945}
   frontRightPoint: {fileID: 498629421}
   rearLeftPoint: {fileID: 1903748503}
@@ -1728,6 +1733,7 @@ MonoBehaviour:
   rollerMaxOffset: 0.03
   rollerSpeed: 2
   minSpeedForSuspension: 0.5
+  rollerUpdateFrequency: 2
   autoFindRollers: 0
   leftRollerPrefix: LeftRoller
   rightRollerPrefix: RightRoller
@@ -1738,6 +1744,7 @@ MonoBehaviour:
   maxPitchAngle: 45
   maxRollAngle: 45
   useAdvancedAngleCalculation: 1
+  invertRoll: 1
   showSurfaceNormals: 1
   showGroundDistances: 1
   showTargetAngles: 1
@@ -1776,9 +1783,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.TrackMaterialController
   trackMaterials:
   - {fileID: 2100000, guid: 13228ed88ec9517468ba77937a95900b, type: 2}
-  trackAnimationSpeed: 0.5
+  trackAnimationSpeed: 1
   minInputThreshold: 0.01
-  trackDirection: {x: 1.5, y: 0}
+  trackDirection: {x: 1, y: 0}
 --- !u!43 &268025638
 Mesh:
   m_ObjectHideFlags: 0

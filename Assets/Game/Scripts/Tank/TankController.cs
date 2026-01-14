@@ -90,6 +90,13 @@ namespace TankGame.Tank
         private void ProcessLocalInput()
         {
             TankInputCommand input = inputHandler.GetCurrentInput();
+            
+            // Отладка двойного выстрела
+            if (input.IsFiring)
+            {
+                Debug.Log($"[TankController] Fire command received! Frame: {Time.frameCount}");
+            }
+            
             ProcessCommand(input);
         }
 

@@ -13,6 +13,10 @@ namespace TankGame.Weapons
     {
         [Tooltip("Урон наносимый пулей при попадании")]
         [SerializeField] private float damage = 10f;
+        
+        [Header("Tracer Settings")]
+        [Tooltip("Включить трассер (визуальный след)")]
+        [SerializeField] private bool enableTracer = true;
 
         private Rigidbody rb;
         private Collider bulletCollider;
@@ -21,6 +25,7 @@ namespace TankGame.Weapons
         private float lifetime;
         private float spawnTime;
         private bool isActive;
+        private BulletTracer tracer;
 
         public float Damage => damage;
         public float TimeAlive => Time.time - spawnTime;
@@ -49,6 +54,16 @@ namespace TankGame.Weapons
             }
 
             bulletCollider.isTrigger = false;
+            
+            // Tracer
+            if (enableTracer)
+            {
+                tracer = GetComponent<BulletTracer>();
+                if (tracer == null)
+                {
+                    tracer = gameObject.AddComponent<BulletTracer>();
+                }
+            }
         }
 
         private void ConfigureRigidbody()
@@ -174,6 +189,12 @@ namespace TankGame.Weapons
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
             }
+            
+            // Включаем трассер
+            if (enableTracer && tracer != null)
+            {
+                tracer.EnableTracer();
+            }
         }
 
         public void OnReturnToPool()
@@ -185,6 +206,12 @@ namespace TankGame.Weapons
             {
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+            }
+            
+            // Очищаем трассер
+            if (enableTracer && tracer != null)
+            {
+                tracer.OnReturnToPool();
             }
         }
 
