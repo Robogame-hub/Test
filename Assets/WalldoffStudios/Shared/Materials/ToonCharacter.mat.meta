@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 47ffdc0dbd18e4375a812066983704da
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Materials/ToonCharacter.mat
+  uploadId: 708536

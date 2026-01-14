@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 44d8c353cbe224ac48f1643466709659
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Shaders/ToonShaders/OutlineShader.shader
+  uploadId: 708536

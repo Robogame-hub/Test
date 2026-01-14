@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a7c39845f786e40f392723489897cd07
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Scripts/ToonColors.cs
+  uploadId: 708536

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d0da646080ace445293637a109b1b857
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Shaders/Skybox/CylinderSkyBox.shader
+  uploadId: 708536

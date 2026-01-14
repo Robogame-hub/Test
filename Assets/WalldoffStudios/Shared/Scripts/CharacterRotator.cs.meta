@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a677643ef5cb64acdae34480743d4f78
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Scripts/CharacterRotator.cs
+  uploadId: 708536

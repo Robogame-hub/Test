@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c3d095a0f29cb4848923c63ac1c68384
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Shaders/PlatformBIP.cginc
+  uploadId: 708536

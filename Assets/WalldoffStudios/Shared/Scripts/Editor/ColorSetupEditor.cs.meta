@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: e5425bf99e491412cadb87ea06b02c43
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Scripts/Editor/ColorSetupEditor.cs
+  uploadId: 708536

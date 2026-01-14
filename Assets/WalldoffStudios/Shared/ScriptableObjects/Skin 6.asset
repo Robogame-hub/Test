@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7c39845f786e40f392723489897cd07, type: 3}
+  m_Name: Skin 6
+  m_EditorClassIdentifier: 
+  <selfShadingSize>k__BackingField: 0.2
+  <highlightSmoothness>k__BackingField: 0.1
+  <highlightStrength>k__BackingField: 0.04
+  <shadowStrength>k__BackingField: 0.2
+  <colors>k__BackingField:
+  - {r: 0.72275233, g: 0.7422904, b: 0.7969265, a: 0}
+  - {r: 0.185251, g: 0.36558408, b: 0.11627126, a: 0}
+  - {r: 0.58946735, g: 0.11344671, b: 0.348455, a: 0}
+  - {r: 0.18160377, g: 0.7264151, b: 0.20267387, a: 0}
+  - {r: 0.80131686, g: 0.32714313, b: 0.10886192, a: 0}
+  - {r: 0.60811967, g: 0.09183669, b: 0.1394248, a: 0}
+  - {r: 0.2212894, g: 0.3635599, b: 0.9589554, a: 0}

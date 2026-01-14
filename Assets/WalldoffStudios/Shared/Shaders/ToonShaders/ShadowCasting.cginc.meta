@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 5006515ae7fd14d43b09fbbfdc340c65
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Shaders/ToonShaders/ShadowCasting.cginc
+  uploadId: 708536

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 52e99dd3d65814887a11047cf9c5739b
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 301227
+  packageName: Toon character
+  packageVersion: 1.0
+  assetPath: Assets/WalldoffStudios/Shared/Shaders/PlatformShader.shader
+  uploadId: 708536
