@@ -10,11 +10,15 @@ namespace TankGame.Examples
     public class CustomTankExample : MonoBehaviour
     {
         [Header("References")]
+        [Tooltip("Ссылка на контроллер танка")]
         [SerializeField] private TankController tankController;
 
         [Header("Custom Abilities")]
+        [Tooltip("Множитель скорости при активации буста")]
         [SerializeField] private float boostSpeed = 10f;
+        [Tooltip("Длительность буста (секунды)")]
         [SerializeField] private float boostDuration = 2f;
+        [Tooltip("Клавиша активации буста")]
         [SerializeField] private KeyCode boostKey = KeyCode.LeftShift;
 
         private bool isBoosting;

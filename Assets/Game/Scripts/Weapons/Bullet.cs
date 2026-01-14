@@ -11,6 +11,7 @@ namespace TankGame.Weapons
     [RequireComponent(typeof(Rigidbody))]
     public class Bullet : MonoBehaviour, IPoolable
     {
+        [Tooltip("Урон наносимый пулей при попадании")]
         [SerializeField] private float damage = 10f;
 
         private Rigidbody rb;

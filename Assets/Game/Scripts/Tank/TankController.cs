@@ -16,15 +16,22 @@ namespace TankGame.Tank
     public class TankController : MonoBehaviour
     {
         [Header("Components")]
+        [Tooltip("Компонент движения танка")]
         [SerializeField] private TankMovement movement;
+        [Tooltip("Компонент башни танка")]
         [SerializeField] private TankTurret turret;
+        [Tooltip("Компонент оружия танка")]
         [SerializeField] private TankWeapon weapon;
+        [Tooltip("Компонент здоровья танка")]
         [SerializeField] private TankHealth health;
+        [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
 
         [Header("Network Settings")]
+        [Tooltip("Является ли этот танк локальным игроком (управляется на этом клиенте)")]
         [SerializeField] private bool isLocalPlayer = true;
-        [SerializeField] private float networkSyncRate = 20f; // Гц
+        [Tooltip("Частота синхронизации по сети (Герц)")]
+        [SerializeField] private float networkSyncRate = 20f;
 
         private float lastNetworkSyncTime;
 

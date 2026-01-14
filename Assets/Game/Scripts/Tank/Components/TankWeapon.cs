@@ -11,19 +11,29 @@ namespace TankGame.Tank.Components
     public class TankWeapon : MonoBehaviour
     {
         [Header("Weapon Settings")]
+        [Tooltip("Точка откуда вылетает снаряд")]
         [SerializeField] private Transform firePoint;
+        [Tooltip("Префаб пули")]
         [SerializeField] private BulletComponent bulletPrefab;
+        [Tooltip("Скорость полета пули")]
         [SerializeField] private float bulletSpeed = 20f;
+        [Tooltip("Время между выстрелами (секунды)")]
         [SerializeField] private float fireCooldown = 0.5f;
+        [Tooltip("Время жизни пули до автоматического уничтожения (секунды)")]
         [SerializeField] private float bulletLifetime = 5f;
+        [Tooltip("Начальный размер пула пуль (для оптимизации)")]
         [SerializeField] private int bulletPoolSize = 20;
 
         [Header("Spread Settings")]
+        [Tooltip("Минимальный разброс при максимальной стабильности (градусы)")]
         [SerializeField] private float minSpreadAngle = 0.5f;
+        [Tooltip("Максимальный разброс при нулевой стабильности (градусы)")]
         [SerializeField] private float maxSpreadAngle = 5f;
 
         [Header("VFX")]
+        [Tooltip("Эффект дульной вспышки при выстреле")]
         [SerializeField] private GameObject muzzleVFX;
+        [Tooltip("Эффект попадания пули")]
         [SerializeField] private GameObject impactVFX;
 
         private ObjectPool<BulletComponent> bulletPool;

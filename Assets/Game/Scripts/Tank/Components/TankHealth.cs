@@ -10,9 +10,13 @@ namespace TankGame.Tank.Components
     public class TankHealth : MonoBehaviour, IDamageable
     {
         [Header("Health Settings")]
+        [Tooltip("Максимальное количество здоровья")]
         [SerializeField] private float maxHealth = 100f;
+        [Tooltip("Может ли танк восстанавливать здоровье со временем")]
         [SerializeField] private bool canRegenerate = false;
+        [Tooltip("Скорость регенерации здоровья в секунду")]
         [SerializeField] private float regenerationRate = 5f;
+        [Tooltip("Задержка перед началом регенерации после получения урона (секунды)")]
         [SerializeField] private float regenerationDelay = 3f;
 
         [Header("Events")]

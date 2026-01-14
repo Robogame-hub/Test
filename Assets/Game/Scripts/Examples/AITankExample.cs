@@ -10,12 +10,17 @@ namespace TankGame.Examples
     public class AITankExample : MonoBehaviour
     {
         [Header("References")]
+        [Tooltip("Ссылка на контроллер танка")]
         [SerializeField] private TankController tankController;
-        [SerializeField] private Transform target; // Цель для преследования
+        [Tooltip("Цель для преследования")]
+        [SerializeField] private Transform target;
 
         [Header("AI Settings")]
+        [Tooltip("Дальность обнаружения целей")]
         [SerializeField] private float detectionRange = 30f;
+        [Tooltip("Дистанция атаки")]
         [SerializeField] private float attackRange = 20f;
+        [Tooltip("Время прицеливания перед выстрелом (секунды)")]
         [SerializeField] private float aimTime = 1f;
 
         private float currentAimTime;

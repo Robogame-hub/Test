@@ -10,11 +10,15 @@ namespace TankGame.Examples
     public class GameManagerExample : MonoBehaviour
     {
         [Header("Tanks")]
+        [Tooltip("Список всех танков в игре")]
         [SerializeField] private List<TankController> allTanks = new List<TankController>();
+        [Tooltip("Танк игрока")]
         [SerializeField] private TankController playerTank;
 
         [Header("Game Settings")]
+        [Tooltip("Количество очков для победы")]
         [SerializeField] private int scoreToWin = 10;
+        [Tooltip("Задержка перед респавном после смерти (секунды)")]
         [SerializeField] private float respawnDelay = 3f;
 
         private Dictionary<TankController, int> scores = new Dictionary<TankController, int>();

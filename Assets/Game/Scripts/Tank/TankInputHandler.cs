@@ -11,6 +11,7 @@ namespace TankGame.Tank
     {
         private Vector2 lastMousePosition;
         private bool isAiming;
+        private TankInputCommand lastCommand;
 
         public TankInputCommand GetCurrentInput()
         {
@@ -39,10 +40,12 @@ namespace TankGame.Tank
 
             bool isFiring = isAiming && Input.GetMouseButtonDown(0);
 
-            return new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring);
+            lastCommand = new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring);
+            return lastCommand;
         }
 
         public bool IsAiming => isAiming;
+        public TankInputCommand LastCommand => lastCommand;
     }
 }
 

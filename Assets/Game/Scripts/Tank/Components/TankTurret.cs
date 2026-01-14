@@ -10,19 +10,29 @@ namespace TankGame.Tank.Components
     public class TankTurret : MonoBehaviour, INetworkSyncable
     {
         [Header("Turret Settings")]
+        [Tooltip("Transform башни танка")]
         [SerializeField] private Transform turret;
+        [Tooltip("Скорость вращения башни (градусов в секунду)")]
         [SerializeField] private float turretRotationSpeed = 60f;
 
         [Header("Cannon Settings")]
+        [Tooltip("Transform пушки танка")]
         [SerializeField] private Transform cannon;
+        [Tooltip("Скорость вращения пушки вверх-вниз (градусов в секунду)")]
         [SerializeField] private float cannonRotationSpeed = 60f;
+        [Tooltip("Минимальный угол наклона пушки вниз (градусы)")]
         [SerializeField] private float minCannonAngle = -30f;
+        [Tooltip("Максимальный угол наклона пушки вверх (градусы)")]
         [SerializeField] private float maxCannonAngle = 10f;
 
         [Header("Aiming Settings")]
+        [Tooltip("Объект прицела (UI элемент)")]
         [SerializeField] private GameObject crosshair;
+        [Tooltip("Максимальная стабильность прицеливания (1.0 = полная точность)")]
         [SerializeField] private float maxAimStability = 1f;
+        [Tooltip("Скорость увеличения стабильности когда башня неподвижна")]
         [SerializeField] private float stabilityIncreaseRate = 0.5f;
+        [Tooltip("Скорость уменьшения стабильности при движении башни")]
         [SerializeField] private float stabilityDecreaseRate = 2f;
 
         private float currentStability;
