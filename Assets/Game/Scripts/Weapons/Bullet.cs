@@ -88,7 +88,8 @@ namespace TankGame.Weapons
                 return;
 
             // Игнорируем столкновение с танком владельцем
-            if (collision.gameObject.CompareTag("Player") || collision.gameObject.CompareTag("Tank"))
+            // Проверяем наличие компонента TankWeapon (значит это танк)
+            if (collision.gameObject.GetComponentInParent<TankWeapon>() != null)
                 return;
 
             // Получаем точку и нормаль столкновения
