@@ -19,6 +19,16 @@ namespace TankGame.Tank.Components
         [SerializeField] private float acceleration = 10f;
         [Tooltip("Скорость торможения танка")]
         [SerializeField] private float deceleration = 15f;
+        
+        [Header("Physics Settings (Anti-Jitter)")]
+        [Tooltip("Масса танка (больше = стабильнее)")]
+        [SerializeField] private float tankMass = 1500f;
+        [Tooltip("Linear Drag (сопротивление движению)")]
+        [SerializeField] private float linearDrag = 0.5f;
+        [Tooltip("Angular Drag (сопротивление вращению)")]
+        [SerializeField] private float angularDrag = 5f;
+        [Tooltip("Физический материал (для устранения трения с террейном)")]
+        [SerializeField] private PhysicsMaterial physicMaterial;
 
         [Header("Ground Alignment - Suspension Points")]
         [Tooltip("Максимальная дистанция проверки земли")]
@@ -298,14 +308,74 @@ namespace TankGame.Tank.Components
 
         private void ConfigureRigidbody()
         {
-            rb.freezeRotation = true;
+            // Основные настройки
+            rb.mass = tankMass;
+            rb.linearDamping = linearDrag;
+            rb.angularDamping = angularDrag;
             rb.useGravity = true;
+            
+            // Фиксируем вращение (управляем вручную)
+            rb.freezeRotation = true;
+            
+            // Интерполяция для плавности (важно для предотвращения дергания!)
             rb.interpolation = RigidbodyInterpolation.Interpolate;
+            
+            // Ограничение максимальной угловой скорости для предотвращения рывков
+            rb.maxAngularVelocity = 7f; // Меньше значение = более плавное вращение
+            
+            // Заморозка локальной оси Z (крен) для предотвращения нежелательных вращений
+            // Позволяем только Pitch (X) и Yaw (Y), но не Roll (Z) если танк должен быть стабильным
+            // Примечание: Если вы хотите полный Roll от физики, закомментируйте эту строку
+            // rb.constraints = RigidbodyConstraints.FreezeRotationZ;
+            
+            // Непрерывная проверка коллизий
             rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+            
+            // Применяем физический материал ко всем коллайдерам
+            ApplyPhysicMaterial();
+            
+            // Если материала нет - создаем автоматически
+            if (physicMaterial == null)
+            {
+                CreateDefaultPhysicMaterial();
+            }
+        }
+        
+        /// <summary>
+        /// Применяет физический материал ко всем коллайдерам танка
+        /// </summary>
+        private void ApplyPhysicMaterial()
+        {
+            if (physicMaterial == null) return;
+            
+            Collider[] colliders = GetComponentsInChildren<Collider>();
+            foreach (Collider col in colliders)
+            {
+                col.material = physicMaterial;
+            }
+        }
+        
+        /// <summary>
+        /// Создает физический материал по умолчанию (без трения)
+        /// </summary>
+        private void CreateDefaultPhysicMaterial()
+        {
+            physicMaterial = new PhysicsMaterial("TankPhysicMaterial")
+            {
+                dynamicFriction = 0f,      // Нет динамического трения
+                staticFriction = 0f,       // Нет статического трения
+                bounciness = 0f,           // Не отскакивает
+                frictionCombine = PhysicsMaterialCombine.Minimum,  // Минимальное трение
+                bounceCombine = PhysicsMaterialCombine.Minimum     // Минимальный отскок
+            };
+            
+            ApplyPhysicMaterial();
+            Debug.Log("TankMovement: Создан физический материал по умолчанию (без трения)");
         }
 
         /// <summary>
         /// Применяет ввод для движения танка с плавным ускорением
+        /// ВАЖНО: Используется в FixedUpdate для физики
         /// </summary>
         public void ApplyMovement(float vertical, float horizontal)
         {
@@ -318,13 +388,14 @@ namespace TankGame.Tank.Components
             currentVelocity = Vector3.Lerp(
                 currentVelocity, 
                 targetVelocity, 
-                accelRate * Time.deltaTime
+                accelRate * Time.fixedDeltaTime
             );
             
+            // Применяем velocity сохраняя Y компонент (гравитация)
             rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
 
             // Вращение танка
-            currentYaw += horizontal * rotationSpeed * Time.deltaTime;
+            currentYaw += horizontal * rotationSpeed * Time.fixedDeltaTime;
             
             // Сохраняем ввод для расчета наклонов
             lastVerticalInput = vertical;
@@ -470,12 +541,15 @@ namespace TankGame.Tank.Components
                 }
             }
 
-            // Плавно применяем кэшированное вращение каждый кадр (дешевая операция)
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation,
+            // Плавно применяем кэшированное вращение ЧЕРЕЗ ФИЗИКУ для предотвращения дергания
+            Quaternion targetRotation = Quaternion.Slerp(
+                rb.rotation,
                 cachedGroundRotation,
-                groundAlignSpeed * Time.deltaTime
+                groundAlignSpeed * Time.fixedDeltaTime
             );
+            
+            // Используем MoveRotation вместо прямого изменения transform
+            rb.MoveRotation(targetRotation);
         }
         
         /// <summary>

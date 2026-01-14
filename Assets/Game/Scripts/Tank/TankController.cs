@@ -71,17 +71,27 @@ namespace TankGame.Tank
                 return;
             }
 
-            // Локальный игрок - обрабатываем ввод
+            // Локальный игрок - обрабатываем ввод (НЕ физический)
             ProcessLocalInput();
-
-            // Выравнивание по земле
-            movement.AlignToGround();
 
             // Сетевая синхронизация
             if (ShouldSyncNetwork())
             {
                 SyncToNetwork();
             }
+        }
+        
+        private void FixedUpdate()
+        {
+            if (!isLocalPlayer)
+                return;
+            
+            // Физика - применяем движение (в FixedUpdate для стабильности!)
+            TankInputCommand input = inputHandler.GetCurrentInput();
+            ProcessPhysicalMovement(input);
+            
+            // Физика - выравнивание по земле
+            movement.AlignToGround();
         }
 
         /// <summary>
@@ -105,10 +115,7 @@ namespace TankGame.Tank
         /// </summary>
         public void ProcessCommand(TankInputCommand command)
         {
-            // Движение
-            movement.ApplyMovement(command.VerticalInput, command.HorizontalInput);
-
-            // Прицеливание
+            // Прицеливание (не физическое, можно в Update)
             if (command.IsAiming)
             {
                 if (!turret.IsAiming)
@@ -122,12 +129,21 @@ namespace TankGame.Tank
                     turret.StopAiming();
             }
 
-            // Стрельба
+            // Стрельба (не физическое, можно в Update)
             if (command.IsFiring && weapon.CanFire)
             {
                 weapon.Fire(turret.CurrentStability);
                 turret.ResetStability();
             }
+        }
+        
+        /// <summary>
+        /// Обработка физического движения (вызывается в FixedUpdate)
+        /// </summary>
+        private void ProcessPhysicalMovement(TankInputCommand command)
+        {
+            // Движение танка (ФИЗИКА - только в FixedUpdate!)
+            movement.ApplyMovement(command.VerticalInput, command.HorizontalInput);
         }
 
         /// <summary>
