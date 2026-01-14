@@ -27,6 +27,8 @@ namespace TankGame.Tank.Components
         [SerializeField] private float groundAlignSpeed = 8f;
         [Tooltip("Маска слоев для определения земли")]
         [SerializeField] private LayerMask groundMask = -1;
+        [Tooltip("Частота проверки земли (меньше = лучше производительность)")]
+        [SerializeField] private int groundCheckFrequency = 1; // Каждый N кадр
         
         [Header("Suspension Points (Точки опоры на гусеницах)")]
         [Tooltip("Передняя левая точка опоры")]
@@ -63,6 +65,8 @@ namespace TankGame.Tank.Components
         [SerializeField] private float rollerSpeed = 2f;
         [Tooltip("Минимальная скорость танка для движения роликов")]
         [SerializeField] private float minSpeedForSuspension = 0.5f;
+        [Tooltip("Частота обновления роликов (меньше = лучше производительность)")]
+        [SerializeField] private int rollerUpdateFrequency = 2; // Обновлять каждые N кадров
         
         [Header("Auto-Find Rollers")]
         [Tooltip("Автоматически найти ролики по имени при старте")]
@@ -89,6 +93,8 @@ namespace TankGame.Tank.Components
         [SerializeField] private float maxRollAngle = 35f;
         [Tooltip("Использовать улучшенный расчет углов (точнее, но дороже)")]
         [SerializeField] private bool useAdvancedAngleCalculation = true;
+        [Tooltip("Инвертировать направление roll (если танк наклоняется не в ту сторону)")]
+        [SerializeField] private bool invertRoll = false;
         
         [Header("Debug Visualization")]
         [Tooltip("Показывать нормали поверхности в точках контакта")]
@@ -110,6 +116,9 @@ namespace TankGame.Tank.Components
         private Vector3[] rightRollerInitialPositions;
         private float[] leftRollerOffsets;
         private float[] rightRollerOffsets;
+        private int rollerUpdateCounter; // Счетчик для пропуска кадров
+        private int groundCheckCounter; // Счетчик для пропуска проверок земли
+        private Quaternion cachedGroundRotation; // Кэшированное вращение
 
         public float MoveSpeed => moveSpeed;
         public float RotationSpeed => rotationSpeed;
@@ -330,15 +339,25 @@ namespace TankGame.Tank.Components
         
         /// <summary>
         /// Обновляет подвеску роликов - движение вверх-вниз имитируя неровности
+        /// Оптимизировано: обновление не каждый кадр
         /// </summary>
         private void UpdateRollerSuspension()
         {
+            // Оптимизация: обновляем ролики не каждый кадр
+            rollerUpdateCounter++;
+            if (rollerUpdateCounter < rollerUpdateFrequency)
+                return;
+            rollerUpdateCounter = 0;
+            
             float currentSpeed = currentVelocity.magnitude;
             float rotationIntensity = Mathf.Abs(lastHorizontalInput);
             
             // Ролики двигаются если танк движется ИЛИ поворачивает на месте
             if (currentSpeed < minSpeedForSuspension && rotationIntensity < 0.1f)
                 return;
+            
+            // Кэшируем время для всех роликов (оптимизация)
+            float currentTime = Time.time;
             
             // Обновляем левые ролики
             if (leftTrackRollers != null && leftRollerInitialPositions != null)
@@ -349,7 +368,7 @@ namespace TankGame.Tank.Components
                     {
                         // Используем Perlin noise для плавного случайного движения
                         float noiseValue = Mathf.PerlinNoise(
-                            Time.time * rollerSpeed + leftRollerOffsets[i], 
+                            currentTime * rollerSpeed + leftRollerOffsets[i], 
                             i * 0.5f
                         );
                         
@@ -374,7 +393,7 @@ namespace TankGame.Tank.Components
                     {
                         // Используем другое смещение для независимого движения
                         float noiseValue = Mathf.PerlinNoise(
-                            Time.time * rollerSpeed + rightRollerOffsets[i] + 50f, // +50 для разницы
+                            currentTime * rollerSpeed + rightRollerOffsets[i] + 50f, // +50 для разницы
                             i * 0.5f + 10f
                         );
                         
@@ -391,6 +410,7 @@ namespace TankGame.Tank.Components
 
         /// <summary>
         /// Выравнивание танка по поверхности земли с системой подвески
+        /// Оптимизировано: проверка земли не каждый кадр
         /// </summary>
         public void AlignToGround()
         {
@@ -401,52 +421,59 @@ namespace TankGame.Tank.Components
                 return;
             }
 
-            // Используем назначенные точки опоры на гусеницах
-            Vector3 frontLeft = frontLeftPoint.position;
-            Vector3 frontRight = frontRightPoint.position;
-            Vector3 rearLeft = rearLeftPoint.position;
-            Vector3 rearRight = rearRightPoint.position;
-
-            // Проверяем каждую точку подвески
-            bool hitFL = Physics.Raycast(frontLeft + Vector3.up, Vector3.down, out RaycastHit hitFrontLeft, groundCheckDistance, groundMask);
-            bool hitFR = Physics.Raycast(frontRight + Vector3.up, Vector3.down, out RaycastHit hitFrontRight, groundCheckDistance, groundMask);
-            bool hitRL = Physics.Raycast(rearLeft + Vector3.up, Vector3.down, out RaycastHit hitRearLeft, groundCheckDistance, groundMask);
-            bool hitRR = Physics.Raycast(rearRight + Vector3.up, Vector3.down, out RaycastHit hitRearRight, groundCheckDistance, groundMask);
-
-            // Если хотя бы 3 точки касаются земли, выравниваем танк
-            int hitCount = (hitFL ? 1 : 0) + (hitFR ? 1 : 0) + (hitRL ? 1 : 0) + (hitRR ? 1 : 0);
-            if (hitCount < 3)
-                return;
-
-            Quaternion groundRotation;
-
-            // Выбираем метод расчета углов
-            if (useAdvancedAngleCalculation)
+            // Оптимизация: делаем raycast не каждый кадр
+            groundCheckCounter++;
+            bool shouldUpdateRotation = groundCheckCounter >= groundCheckFrequency;
+            
+            if (shouldUpdateRotation)
             {
-                groundRotation = CalculateAdvancedGroundRotation(
-                    hitFL, hitFR, hitRL, hitRR,
-                    hitFrontLeft, hitFrontRight, hitRearLeft, hitRearRight
-                );
-            }
-            else
-            {
-                groundRotation = CalculateSimpleGroundRotation(
-                    hitFL, hitFR, hitRL, hitRR,
-                    hitFrontLeft, hitFrontRight, hitRearLeft, hitRearRight,
-                    hitCount
-                );
+                groundCheckCounter = 0;
+                
+                // Используем назначенные точки опоры на гусеницах
+                Vector3 frontLeft = frontLeftPoint.position;
+                Vector3 frontRight = frontRightPoint.position;
+                Vector3 rearLeft = rearLeftPoint.position;
+                Vector3 rearRight = rearRightPoint.position;
+
+                // Проверяем каждую точку подвески
+                bool hitFL = Physics.Raycast(frontLeft + Vector3.up, Vector3.down, out RaycastHit hitFrontLeft, groundCheckDistance, groundMask);
+                bool hitFR = Physics.Raycast(frontRight + Vector3.up, Vector3.down, out RaycastHit hitFrontRight, groundCheckDistance, groundMask);
+                bool hitRL = Physics.Raycast(rearLeft + Vector3.up, Vector3.down, out RaycastHit hitRearLeft, groundCheckDistance, groundMask);
+                bool hitRR = Physics.Raycast(rearRight + Vector3.up, Vector3.down, out RaycastHit hitRearRight, groundCheckDistance, groundMask);
+
+                // Если хотя бы 3 точки касаются земли, выравниваем танк
+                int hitCount = (hitFL ? 1 : 0) + (hitFR ? 1 : 0) + (hitRL ? 1 : 0) + (hitRR ? 1 : 0);
+                if (hitCount >= 3)
+                {
+                    // Выбираем метод расчета углов
+                    if (useAdvancedAngleCalculation)
+                    {
+                        cachedGroundRotation = CalculateAdvancedGroundRotation(
+                            hitFL, hitFR, hitRL, hitRR,
+                            hitFrontLeft, hitFrontRight, hitRearLeft, hitRearRight
+                        );
+                    }
+                    else
+                    {
+                        cachedGroundRotation = CalculateSimpleGroundRotation(
+                            hitFL, hitFR, hitRL, hitRR,
+                            hitFrontLeft, hitFrontRight, hitRearLeft, hitRearRight,
+                            hitCount
+                        );
+                    }
+
+                    // Добавляем физические наклоны (тангаж и крен)
+                    if (enablePhysicsTilt)
+                    {
+                        cachedGroundRotation = ApplyPhysicsTilt(cachedGroundRotation);
+                    }
+                }
             }
 
-            // Добавляем физические наклоны (тангаж и крен)
-            if (enablePhysicsTilt)
-            {
-                groundRotation = ApplyPhysicsTilt(groundRotation);
-            }
-
-            // Плавно применяем вращение
+            // Плавно применяем кэшированное вращение каждый кадр (дешевая операция)
             transform.rotation = Quaternion.Slerp(
                 transform.rotation,
-                groundRotation,
+                cachedGroundRotation,
                 groundAlignSpeed * Time.deltaTime
             );
         }
@@ -512,19 +539,16 @@ namespace TankGame.Tank.Components
             // Pitch: положительный = нос вверх (передняя часть выше), отрицательный = нос вниз
             float targetPitch = Mathf.Atan2(frontHeight - rearHeight, frontRearDistance) * Mathf.Rad2Deg;
             
-            // Roll: положительный = наклон вправо (правая сторона ниже), отрицательный = наклон влево
-            // В Unity Z rotation: + = крен вправо, - = крен влево
-            // Если левая сторона выше правой -> танк должен наклониться влево (отрицательный roll)
-            float targetRoll = -Mathf.Atan2(leftHeight - rightHeight, leftRightDistance) * Mathf.Rad2Deg;
+            // Roll: вычисляем наклон по разнице высот левой и правой сторон
+            // Логика: танк наклоняется В СТОРОНУ более низкой точки
+            // Если левая ниже -> отрицательный roll (наклон влево)
+            // Если правая ниже -> положительный roll (наклон вправо)
+            float heightDifference = leftHeight - rightHeight;
+            float targetRoll = -Mathf.Atan2(heightDifference, leftRightDistance) * Mathf.Rad2Deg;
             
-            // Отладочная информация
-            if (showTargetAngles && Application.isPlaying)
-            {
-                Debug.DrawLine(transform.position, transform.position + Vector3.up * 3f, Color.yellow);
-                Debug.Log($"Heights - FL:{heightFL:F2} FR:{heightFR:F2} RL:{heightRL:F2} RR:{heightRR:F2} | " +
-                         $"Left:{leftHeight:F2} Right:{rightHeight:F2} | " +
-                         $"Pitch:{targetPitch:F1}° Roll:{targetRoll:F1}°");
-            }
+            // Опция инвертирования (если нужно)
+            if (invertRoll)
+                targetRoll = -targetRoll;
             
             // Ограничиваем углы для стабильности
             targetPitch = Mathf.Clamp(targetPitch, -maxPitchAngle, maxPitchAngle);
@@ -586,33 +610,15 @@ namespace TankGame.Tank.Components
         
         private void OnDrawGizmos()
         {
-            // Визуализируем ролики и их движение
-            if (enableRollerSuspension && Application.isPlaying)
-            {
-                DrawRollerSuspensionGizmos(leftTrackRollers, leftRollerInitialPositions, Color.cyan);
-                DrawRollerSuspensionGizmos(rightTrackRollers, rightRollerInitialPositions, Color.magenta);
-            }
-            
-            // Проверяем и визуализируем точки опоры
+            // Базовая визуализация только если объект не выбран
             if (frontLeftPoint != null && frontRightPoint != null && rearLeftPoint != null && rearRightPoint != null)
             {
-                DrawSuspensionPoint(frontLeftPoint, Color.green, "FL");
-                DrawSuspensionPoint(frontRightPoint, Color.green, "FR");
-                DrawSuspensionPoint(rearLeftPoint, Color.blue, "RL");
-                DrawSuspensionPoint(rearRightPoint, Color.blue, "RR");
-                
-                // Соединяем точки линиями
-                Gizmos.color = Color.cyan;
+                // Соединяем точки линиями (легкая операция)
+                Gizmos.color = new Color(0, 1, 1, 0.3f); // Полупрозрачный cyan
                 Gizmos.DrawLine(frontLeftPoint.position, frontRightPoint.position);
                 Gizmos.DrawLine(rearLeftPoint.position, rearRightPoint.position);
                 Gizmos.DrawLine(frontLeftPoint.position, rearLeftPoint.position);
                 Gizmos.DrawLine(frontRightPoint.position, rearRightPoint.position);
-                
-                // В режиме игры показываем дополнительную информацию
-                if (Application.isPlaying)
-                {
-                    DrawAdvancedSuspensionInfo();
-                }
             }
         }
         
@@ -748,17 +754,29 @@ namespace TankGame.Tank.Components
         
         private void OnDrawGizmosSelected()
         {
-            // В выбранном состоянии показываем дополнительную информацию
-            Gizmos.color = Color.red;
+            // Детальная визуализация только когда объект выбран (оптимизация)
             
-            if (frontLeftPoint != null)
-                UnityEditor.Handles.Label(frontLeftPoint.position + Vector3.up * 0.5f, "FL");
-            if (frontRightPoint != null)
-                UnityEditor.Handles.Label(frontRightPoint.position + Vector3.up * 0.5f, "FR");
-            if (rearLeftPoint != null)
-                UnityEditor.Handles.Label(rearLeftPoint.position + Vector3.up * 0.5f, "RL");
-            if (rearRightPoint != null)
-                UnityEditor.Handles.Label(rearRightPoint.position + Vector3.up * 0.5f, "RR");
+            // Визуализируем ролики и их движение
+            if (enableRollerSuspension && Application.isPlaying)
+            {
+                DrawRollerSuspensionGizmos(leftTrackRollers, leftRollerInitialPositions, Color.cyan);
+                DrawRollerSuspensionGizmos(rightTrackRollers, rightRollerInitialPositions, Color.magenta);
+            }
+            
+            // Проверяем и визуализируем точки опоры
+            if (frontLeftPoint != null && frontRightPoint != null && rearLeftPoint != null && rearRightPoint != null)
+            {
+                DrawSuspensionPoint(frontLeftPoint, Color.green, "FL");
+                DrawSuspensionPoint(frontRightPoint, Color.green, "FR");
+                DrawSuspensionPoint(rearLeftPoint, Color.blue, "RL");
+                DrawSuspensionPoint(rearRightPoint, Color.blue, "RR");
+                
+                // В режиме игры показываем дополнительную информацию
+                if (Application.isPlaying)
+                {
+                    DrawAdvancedSuspensionInfo();
+                }
+            }
         }
         
         /// <summary>

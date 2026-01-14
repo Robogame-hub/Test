@@ -14,12 +14,16 @@ namespace TankGame.Tank.Components
         [SerializeField] private Transform turret;
         [Tooltip("Скорость вращения башни (градусов в секунду)")]
         [SerializeField] private float turretRotationSpeed = 60f;
+        [Tooltip("Сглаживание вращения башни (0 = без сглаживания, 10+ = плавное)")]
+        [SerializeField] private float turretSmoothness = 8f;
 
         [Header("Cannon Settings")]
         [Tooltip("Transform пушки танка")]
         [SerializeField] private Transform cannon;
         [Tooltip("Скорость вращения пушки вверх-вниз (градусов в секунду)")]
         [SerializeField] private float cannonRotationSpeed = 60f;
+        [Tooltip("Сглаживание вращения пушки (0 = без сглаживания, 10+ = плавное)")]
+        [SerializeField] private float cannonSmoothness = 8f;
         [Tooltip("Минимальный угол наклона пушки вниз (градусы)")]
         [SerializeField] private float minCannonAngle = -30f;
         [Tooltip("Максимальный угол наклона пушки вверх (градусы)")]
@@ -38,6 +42,8 @@ namespace TankGame.Tank.Components
         private float currentStability;
         private float turretRotationVelocity;
         private bool isAiming;
+        private float currentTurretRotation;
+        private float currentCannonRotation;
 
         public Transform Turret => turret;
         public Transform Cannon => cannon;
@@ -83,10 +89,14 @@ namespace TankGame.Tank.Components
             if (crosshair)
                 crosshair.SetActive(false);
             currentStability = 0f;
+            
+            // Сбрасываем накопленное вращение для плавного перехода
+            currentTurretRotation = 0f;
+            currentCannonRotation = 0f;
         }
 
         /// <summary>
-        /// Вращает башню и пушку на основе ввода мыши
+        /// Вращает башню и пушку на основе ввода мыши (с плавным сглаживанием)
         /// </summary>
         public void RotateTurret(Vector2 mouseDelta)
         {
@@ -95,25 +105,50 @@ namespace TankGame.Tank.Components
 
             float totalMovement = 0f;
 
-            // Вращение башни
+            // Вращение башни с сглаживанием
             if (turret != null)
             {
-                float rotation = mouseDelta.x * turretRotationSpeed * Time.deltaTime;
-                turret.Rotate(0f, 0f, rotation);
-                totalMovement += Mathf.Abs(rotation);
+                // Целевое вращение
+                float targetRotation = mouseDelta.x * turretRotationSpeed * Time.deltaTime;
+                
+                // Плавное сглаживание
+                if (turretSmoothness > 0)
+                {
+                    currentTurretRotation = Mathf.Lerp(currentTurretRotation, targetRotation, Time.deltaTime * turretSmoothness);
+                }
+                else
+                {
+                    currentTurretRotation = targetRotation;
+                }
+                
+                turret.Rotate(0f, 0f, currentTurretRotation);
+                totalMovement += Mathf.Abs(currentTurretRotation);
             }
 
-            // Вращение пушки
+            // Вращение пушки с сглаживанием
             if (cannon != null)
             {
-                float rotation = mouseDelta.y * cannonRotationSpeed * Time.deltaTime;
+                // Целевое вращение
+                float targetRotation = mouseDelta.y * cannonRotationSpeed * Time.deltaTime;
+                
+                // Плавное сглаживание
+                if (cannonSmoothness > 0)
+                {
+                    currentCannonRotation = Mathf.Lerp(currentCannonRotation, targetRotation, Time.deltaTime * cannonSmoothness);
+                }
+                else
+                {
+                    currentCannonRotation = targetRotation;
+                }
+                
+                // Применяем с ограничением углов
                 float currentAngle = cannon.localEulerAngles.x;
                 if (currentAngle > 180f)
                     currentAngle -= 360f;
 
-                float newAngle = Mathf.Clamp(currentAngle + rotation, minCannonAngle, maxCannonAngle);
+                float newAngle = Mathf.Clamp(currentAngle + currentCannonRotation, minCannonAngle, maxCannonAngle);
                 cannon.localRotation = Quaternion.Euler(newAngle, 0f, 0f);
-                totalMovement += Mathf.Abs(rotation);
+                totalMovement += Mathf.Abs(currentCannonRotation);
             }
 
             // Обновление стабильности прицеливания
