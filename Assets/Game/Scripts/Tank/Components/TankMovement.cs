@@ -115,6 +115,7 @@ namespace TankGame.Tank.Components
         [SerializeField] private bool showTargetAngles = true;
 
         private Rigidbody rb;
+        private TankEngine tankEngine;  // Для проверки работы двигателя
         private float currentYaw;
         private Vector3 currentVelocity;
         private Vector3 targetVelocity;
@@ -144,6 +145,13 @@ namespace TankGame.Tank.Components
         private void Start()
         {
             currentYaw = transform.eulerAngles.y;
+            
+            // Найти TankEngine (опционально)
+            tankEngine = GetComponent<TankEngine>();
+            if (tankEngine == null)
+            {
+                Debug.LogWarning("[TankMovement] TankEngine not found! Tank can move without engine.");
+            }
             
             // Автоматически создаем точки если не назначены
             if (autoCreatePoints)
@@ -379,6 +387,20 @@ namespace TankGame.Tank.Components
         /// </summary>
         public void ApplyMovement(float vertical, float horizontal)
         {
+            // ПРОВЕРКА: Двигатель должен быть запущен!
+            if (tankEngine != null && !tankEngine.IsEngineRunning)
+            {
+                // Двигатель выключен - не применяем ввод, но замедляемся
+                targetVelocity = Vector3.zero;
+                currentVelocity = Vector3.Lerp(
+                    currentVelocity,
+                    targetVelocity,
+                    deceleration * Time.fixedDeltaTime
+                );
+                rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
+                return;  // НЕ двигаемся!
+            }
+            
             // Движение вперед/назад с плавным ускорением
             Vector3 moveDirection = transform.forward * -vertical;
             targetVelocity = moveDirection * moveSpeed;

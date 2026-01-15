@@ -23,6 +23,7 @@ namespace TankGame.Tank
         
         private TankMovement tankMovement;
         private TankInputHandler inputHandler;
+        private TankEngine tankEngine;  // Для проверки работы двигателя
         private float currentTrackSpeed; // Текущая скорость анимации (с плавным переходом)
         private static readonly int TrackSpeedProperty = Shader.PropertyToID("_TrackSpeed");
         private static readonly int TrackDirectionProperty = Shader.PropertyToID("_TrackDirection");
@@ -31,12 +32,30 @@ namespace TankGame.Tank
         {
             tankMovement = GetComponent<TankMovement>();
             inputHandler = GetComponent<TankInputHandler>();
+            tankEngine = GetComponent<TankEngine>();
         }
 
         private void Update()
         {
             if (tankMovement == null || trackMaterials == null || trackMaterials.Length == 0)
                 return;
+
+            // ПРОВЕРКА: Двигатель должен быть запущен!
+            if (tankEngine != null && !tankEngine.IsEngineRunning)
+            {
+                // Двигатель выключен - гусеницы не двигаются
+                currentTrackSpeed = 0f;
+                
+                // Применяем к всем материалам
+                foreach (Material mat in trackMaterials)
+                {
+                    if (mat != null)
+                    {
+                        mat.SetFloat(TrackSpeedProperty, 0f);
+                    }
+                }
+                return;  // НЕ обновляем текстуры!
+            }
 
             // Определяем есть ли движение или поворот
             bool isMoving = false;
