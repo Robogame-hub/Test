@@ -130,10 +130,19 @@ namespace TankGame.Tank
             }
 
             // Стрельба (не физическое, можно в Update)
-            if (command.IsFiring && weapon.CanFire)
+            if (command.IsFiring)
             {
-                weapon.Fire(turret.CurrentStability);
-                turret.ResetStability();
+                Debug.Log($"[TankController] Fire command! CanFire={weapon.CanFire}, Stability={turret.CurrentStability}, Frame={Time.frameCount}");
+                
+                if (weapon.CanFire)
+                {
+                    weapon.Fire(turret.CurrentStability);
+                    turret.ResetStability();
+                }
+                else
+                {
+                    Debug.LogWarning($"[TankController] Can't fire! Cooldown={Time.time - weapon.LastFireTime} < {weapon.FireCooldown}");
+                }
             }
         }
         

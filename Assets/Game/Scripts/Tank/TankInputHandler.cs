@@ -66,6 +66,12 @@ namespace TankGame.Tank
             }
 
             bool isFiring = isAiming && Input.GetMouseButtonDown(0);
+            
+            // Debug для отслеживания ввода
+            if (Input.GetMouseButtonDown(0))
+            {
+                Debug.Log($"[TankInputHandler] LMB pressed! isAiming={isAiming}, isFiring={isFiring}, Frame={Time.frameCount}");
+            }
 
             lastCommand = new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring);
             return lastCommand;

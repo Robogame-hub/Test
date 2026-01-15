@@ -637,11 +637,11 @@ namespace TankGame.Tank.Components
         /// </summary>
         private Quaternion ApplyPhysicsTilt(Quaternion baseRotation)
         {
-            // Наклон назад при ускорении вперед (как у настоящего танка)
-            float pitchTilt = -lastVerticalInput * accelerationTiltAmount;
+            // ИСПРАВЛЕНО: Наклон назад при ускорении вперед (как у настоящего танка)
+            float pitchTilt = lastVerticalInput * accelerationTiltAmount;
             
-            // Наклон в сторону при повороте
-            float rollTilt = lastHorizontalInput * turnTiltAmount;
+            // ИСПРАВЛЕНО: Наклон в сторону при повороте
+            float rollTilt = -lastHorizontalInput * turnTiltAmount;
 
             // Плавно применяем наклоны
             float currentPitch = Mathf.Lerp(0f, pitchTilt, tiltSmoothSpeed * Time.deltaTime);
@@ -881,6 +881,31 @@ namespace TankGame.Tank.Components
                     Gizmos.DrawWireSphere(initialWorldPos, 0.05f);
                 }
             }
+        }
+        
+        #endregion
+        
+        #region Public API
+        
+        /// <summary>
+        /// Получить фактор движения (0 = стоит, 1 = максимальное движение/поворот)
+        /// Используется для расчета разброса оружия
+        /// </summary>
+        public float GetMovementFactor()
+        {
+            if (rb == null)
+                return 0f;
+            
+            // Скорость движения (0-1)
+            float linearFactor = rb.linearVelocity.magnitude / moveSpeed;
+            linearFactor = Mathf.Clamp01(linearFactor);
+            
+            // Скорость поворота (0-1)
+            float angularFactor = Mathf.Abs(rb.angularVelocity.y) / (rotationSpeed * Mathf.Deg2Rad);
+            angularFactor = Mathf.Clamp01(angularFactor);
+            
+            // Берем максимум из двух факторов
+            return Mathf.Max(linearFactor, angularFactor);
         }
         
         #endregion

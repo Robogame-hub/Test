@@ -9,18 +9,45 @@ namespace TankGame.Settings
     public class InputSettings : MonoBehaviour
     {
         private static InputSettings instance;
+        private static bool isQuitting = false;
+        
         public static InputSettings Instance
         {
             get
             {
+                // ОПТИМИЗАЦИЯ: Не создаем instance при выходе из игры
+                if (isQuitting)
+                {
+                    Debug.LogWarning("[InputSettings] Instance requested during application quit. Returning null.");
+                    return null;
+                }
+                
                 if (instance == null)
                 {
-                    instance = FindObjectOfType<InputSettings>();
-                    if (instance == null)
+                    // ИСПРАВЛЕНО: Кэшируем result FindObjectOfType
+                    // FindObjectOfType - очень медленная операция!
+                    InputSettings[] existingInstances = FindObjectsOfType<InputSettings>();
+                    
+                    if (existingInstances.Length > 1)
                     {
+                        Debug.LogWarning($"[InputSettings] Found {existingInstances.Length} instances! Should only be one. Destroying extras.");
+                        for (int i = 1; i < existingInstances.Length; i++)
+                        {
+                            Destroy(existingInstances[i].gameObject);
+                        }
+                    }
+                    
+                    if (existingInstances.Length > 0)
+                    {
+                        instance = existingInstances[0];
+                    }
+                    else
+                    {
+                        // Создаем новый instance только если не нашли
                         GameObject go = new GameObject("InputSettings");
                         instance = go.AddComponent<InputSettings>();
                         DontDestroyOnLoad(go);
+                        Debug.Log("[InputSettings] Created new InputSettings singleton");
                     }
                 }
                 return instance;
@@ -116,6 +143,7 @@ namespace TankGame.Settings
         {
             if (instance != null && instance != this)
             {
+                Debug.LogWarning($"[InputSettings] Duplicate instance detected on {gameObject.name}. Destroying.");
                 Destroy(gameObject);
                 return;
             }
@@ -123,6 +151,20 @@ namespace TankGame.Settings
             instance = this;
             DontDestroyOnLoad(gameObject);
             LoadSettings();
+        }
+        
+        private void OnApplicationQuit()
+        {
+            isQuitting = true;
+            instance = null;
+        }
+        
+        private void OnDestroy()
+        {
+            if (instance == this)
+            {
+                instance = null;
+            }
         }
 
         /// <summary>

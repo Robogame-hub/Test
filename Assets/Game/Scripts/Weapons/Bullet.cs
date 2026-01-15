@@ -105,8 +105,20 @@ namespace TankGame.Weapons
 
             // Игнорируем столкновение с танком владельцем
             // Проверяем наличие компонента TankWeapon (значит это танк)
-            if (collision.gameObject.GetComponentInParent<TankWeapon>() != null)
+            TankWeapon ownerCheck = collision.gameObject.GetComponentInParent<TankWeapon>();
+            if (ownerCheck != null && ownerCheck == ownerWeapon)
+            {
+                Debug.Log($"[Bullet] Ignoring collision with owner tank: {collision.gameObject.name}");
                 return;
+            }
+
+            // ИСПРАВЛЕНО: Проверяем что есть контакты перед доступом
+            if (collision.contacts.Length == 0)
+            {
+                Debug.LogWarning($"[Bullet] No contact points in collision with {collision.gameObject.name}");
+                HandleImpact(transform.position, -rb.linearVelocity.normalized, collision.gameObject);
+                return;
+            }
 
             // Получаем точку и нормаль столкновения
             ContactPoint contact = collision.contacts[0];
@@ -188,6 +200,13 @@ namespace TankGame.Weapons
             {
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = false;
+            }
+            
+            // Включаем коллайдер
+            if (bulletCollider != null)
+            {
+                bulletCollider.enabled = true;
             }
             
             // Включаем трассер
@@ -195,6 +214,8 @@ namespace TankGame.Weapons
             {
                 tracer.EnableTracer();
             }
+            
+            Debug.Log($"[Bullet] Spawned from pool: {gameObject.name} at {transform.position}");
         }
 
         public void OnReturnToPool()
@@ -206,6 +227,13 @@ namespace TankGame.Weapons
             {
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true; // Делаем kinematic чтобы не падали в пуле
+            }
+            
+            // Отключаем коллайдер
+            if (bulletCollider != null)
+            {
+                bulletCollider.enabled = false;
             }
             
             // Очищаем трассер
@@ -213,6 +241,8 @@ namespace TankGame.Weapons
             {
                 tracer.OnReturnToPool();
             }
+            
+            Debug.Log($"[Bullet] Returned to pool: {gameObject.name}");
         }
 
         #endregion
