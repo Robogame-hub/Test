@@ -42,6 +42,14 @@ namespace TankGame.Tank
         public TankHealth Health => health;
         public bool IsLocalPlayer => isLocalPlayer;
 
+        /// <summary>
+        /// Устанавливает, является ли танк локальным игроком (для сетевой игры)
+        /// </summary>
+        public void SetIsLocalPlayer(bool isLocal)
+        {
+            isLocalPlayer = isLocal;
+        }
+
         private void Awake()
         {
             InitializeComponents();
