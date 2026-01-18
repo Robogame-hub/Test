@@ -1,9 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TankGame.Tank.Components;
-#if UNITY_TMPRO
 using TMPro;
-#endif
 
 namespace TankGame.UI
 {
@@ -20,10 +18,8 @@ namespace TankGame.UI
         [Tooltip("Text компонент для отображения здоровья (Unity UI Text - используйте ОДИН из вариантов)")]
         [SerializeField] private Text healthText;
         
-#if UNITY_TMPRO
         [Tooltip("TextMeshProUGUI компонент для отображения здоровья (если используете TextMeshPro вместо Text)")]
         [SerializeField] private TextMeshProUGUI healthTextTMP;
-#endif
         
         [Header("Display Settings")]
         [Tooltip("Формат отображения здоровья (например: \"HP: {0}/{1}\" или \"{0}\")")]
@@ -47,26 +43,25 @@ namespace TankGame.UI
             // Проверка компонентов
             if (tankHealth == null)
             {
-                Debug.LogWarning("[HealthUI] TankHealth not assigned! Assign manually in Inspector.");
+                Debug.LogError("[HealthUI] TankHealth not assigned! Assign manually in Inspector. Health will not be displayed.");
+                return;
             }
             
             // Проверяем наличие текстового компонента
-#if UNITY_TMPRO
             if (healthText == null && healthTextTMP == null)
-#else
-            if (healthText == null)
-#endif
             {
-                Debug.LogWarning("[HealthUI] Health Text not assigned! Create a UI Text element (Text or TextMeshPro) and assign it manually in Inspector.");
+                Debug.LogError("[HealthUI] Health Text not assigned! Create a UI Text element (Text or TextMeshPro) and assign it manually in Inspector.");
+                return;
             }
             
             // Подписываемся на события изменения здоровья
-            if (tankHealth != null)
-            {
-                tankHealth.OnHealthChanged.AddListener(OnHealthChanged);
-                // Обновляем UI сразу
-                UpdateHealthDisplay(tankHealth.CurrentHealth, tankHealth.MaxHealth);
-            }
+            tankHealth.OnHealthChanged.AddListener(OnHealthChanged);
+            
+            // Обновляем UI сразу при старте
+            float currentHP = tankHealth.CurrentHealth;
+            float maxHP = tankHealth.MaxHealth;
+            Debug.Log($"[HealthUI] Initializing! Health: {currentHP}/{maxHP}, TextComponent: {(healthText != null ? "Text" : (healthTextTMP != null ? "TextMeshPro" : "None"))}");
+            UpdateHealthDisplay(currentHP, maxHP);
         }
         
         private void OnDestroy()
@@ -112,14 +107,18 @@ namespace TankGame.UI
             {
                 healthText.text = healthString;
                 healthText.color = healthColor;
+                Debug.Log($"[HealthUI] Updated Text: {healthString}");
             }
-#if UNITY_TMPRO
             else if (healthTextTMP != null)
             {
                 healthTextTMP.text = healthString;
                 healthTextTMP.color = healthColor;
+                Debug.Log($"[HealthUI] Updated TextMeshPro: {healthString}, Component: {(healthTextTMP == null ? "NULL" : "OK")}");
             }
-#endif
+            else
+            {
+                Debug.LogWarning("[HealthUI] No text component assigned! Cannot update health display.");
+            }
         }
     }
 }

@@ -2,7 +2,7 @@ using UnityEngine;
 using TankGame.Tank;
 using TankGame.Game;
 
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
 using Photon.Pun;
 using Photon.Realtime;
 #endif
@@ -14,19 +14,19 @@ namespace TankGame.Network
     /// Управляет подключением, комнатами и спавном танков
     /// </summary>
     public class PhotonNetworkManager : MonoBehaviour
-#if PHOTON_PUN_2
-        , IConnectionCallbacks, IMatchmakingCallbacks, IInRoomCallbacks
-#endif
     {
         [Header("Network Settings")]
         [Tooltip("Версия игры (для разделения игроков разных версий)")]
         [SerializeField] private string gameVersion = "1.0";
         
         [Tooltip("Максимальное количество игроков в комнате")]
-        [SerializeField] private byte maxPlayersPerRoom = 6;
+        [SerializeField] private byte maxPlayersPerRoom = 16;
         
-        [Tooltip("Имя комнаты (если пусто, создается случайная)")]
-        [SerializeField] private string roomName = "";
+        [Tooltip("Имя комнаты (если пусто, используется дефолтное имя)")]
+        [SerializeField] private string roomName = "MainRoom";
+        
+        [Tooltip("Автоматически подключаться и создавать/присоединяться к комнате при старте")]
+        [SerializeField] private bool autoConnectOnStart = true;
 
         [Header("Tank Spawn")]
         [Tooltip("Префаб танка для спавна (должен иметь TankNetworkPhoton и PhotonView)")]
@@ -38,7 +38,7 @@ namespace TankGame.Network
         private static PhotonNetworkManager instance;
         public static PhotonNetworkManager Instance => instance;
 
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
         private bool isConnecting = false;
         private int playerNumber = 0;
 #endif
@@ -56,7 +56,7 @@ namespace TankGame.Network
                 return;
             }
 
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
             PhotonNetwork.AddCallbackTarget(this);
 #else
             Debug.LogWarning("[PhotonNetworkManager] Photon PUN 2 not installed! This component requires Photon PUN 2 to work.");
@@ -65,18 +65,52 @@ namespace TankGame.Network
 
         private void Start()
         {
-#if PHOTON_PUN_2
-            // Подключаемся автоматически при старте
-            if (!PhotonNetwork.IsConnected)
+#if PHOTON_UNITY_NETWORKING
+            if (autoConnectOnStart)
             {
-                Connect();
+                // Подключаемся и создаем/присоединяемся к комнате автоматически при старте
+                if (!PhotonNetwork.IsConnected)
+                {
+                    Debug.Log("[PhotonNetworkManager] Start(): Not connected, calling Connect()...");
+                    Connect();
+                }
+                else
+                {
+                    Debug.Log("[PhotonNetworkManager] Start(): Already connected!");
+                    if (!PhotonNetwork.InRoom)
+                    {
+                        // Уже подключены, но не в комнате - присоединяемся
+                        Debug.Log("[PhotonNetworkManager] Start(): Not in room, calling JoinOrCreateRoom()...");
+                        JoinOrCreateRoom();
+                    }
+                    else
+                    {
+                        Debug.Log($"[PhotonNetworkManager] Start(): Already in room: {PhotonNetwork.CurrentRoom.Name}");
+                    }
+                }
+            }
+#endif
+        }
+
+        private void Update()
+        {
+#if PHOTON_UNITY_NETWORKING
+            // Проверка состояния подключения (для диагностики)
+            // Можно удалить после отладки
+            if (Time.frameCount % 120 == 0) // Каждые 2 секунды при 60 FPS
+            {
+                if (PhotonNetwork.IsConnected && !PhotonNetwork.InRoom && !isConnecting)
+                {
+                    Debug.LogWarning("[PhotonNetworkManager] Connected but not in room! Attempting to join...");
+                    JoinOrCreateRoom();
+                }
             }
 #endif
         }
 
         private void OnDestroy()
         {
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
             PhotonNetwork.RemoveCallbackTarget(this);
 #endif
         }
@@ -86,18 +120,25 @@ namespace TankGame.Network
         /// </summary>
         public void Connect()
         {
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
             if (PhotonNetwork.IsConnected)
             {
                 Debug.Log("[PhotonNetworkManager] Already connected to Photon!");
+                // Если уже подключены, но не в комнате - присоединяемся
+                if (!PhotonNetwork.InRoom)
+                {
+                    JoinOrCreateRoom();
+                }
                 return;
             }
 
             isConnecting = true;
             PhotonNetwork.AutomaticallySyncScene = true;
             PhotonNetwork.GameVersion = gameVersion;
+            
+            Debug.Log($"[PhotonNetworkManager] Calling PhotonNetwork.ConnectUsingSettings()... GameVersion={gameVersion}");
             PhotonNetwork.ConnectUsingSettings();
-            Debug.Log("[PhotonNetworkManager] Connecting to Photon...");
+            Debug.Log("[PhotonNetworkManager] ConnectUsingSettings() called. Waiting for OnConnectedToMaster() callback...");
 #else
             Debug.LogError("[PhotonNetworkManager] Photon PUN 2 not installed! Cannot connect.");
 #endif
@@ -105,10 +146,11 @@ namespace TankGame.Network
 
         /// <summary>
         /// Подключиться к комнате (или создать, если не существует)
+        /// Все игроки попадают в одну и ту же комнату
         /// </summary>
         public void JoinOrCreateRoom()
         {
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
             if (!PhotonNetwork.IsConnected)
             {
                 Debug.LogWarning("[PhotonNetworkManager] Not connected to Photon! Connecting first...");
@@ -116,20 +158,31 @@ namespace TankGame.Network
                 return;
             }
 
+            // Используем фиксированное имя комнаты для всех игроков
             if (string.IsNullOrEmpty(roomName))
             {
-                roomName = "Room_" + Random.Range(1000, 9999);
+                roomName = "MainRoom";
             }
 
             RoomOptions roomOptions = new RoomOptions
             {
                 MaxPlayers = maxPlayersPerRoom,
                 IsVisible = true,
-                IsOpen = true
+                IsOpen = true, // Комната открыта для подключения в любой момент
+                EmptyRoomTtl = 0, // Комната не удаляется когда пустая (0 = никогда не удаляется)
+                PlayerTtl = 0 // Игроки не удаляются при отключении (0 = никогда не удаляются)
             };
 
-            PhotonNetwork.JoinOrCreateRoom(roomName, roomOptions, TypedLobby.Default);
-            Debug.Log($"[PhotonNetworkManager] Joining or creating room: {roomName}");
+            Debug.Log($"[PhotonNetworkManager] Calling PhotonNetwork.JoinOrCreateRoom(\"{roomName}\")...");
+            bool joinResult = PhotonNetwork.JoinOrCreateRoom(roomName, roomOptions, TypedLobby.Default);
+            if (!joinResult)
+            {
+                Debug.LogError($"[PhotonNetworkManager] PhotonNetwork.JoinOrCreateRoom() returned FALSE! This means the call failed immediately.");
+            }
+            else
+            {
+                Debug.Log($"[PhotonNetworkManager] JoinOrCreateRoom() called successfully. Waiting for callback...");
+            }
 #else
             Debug.LogError("[PhotonNetworkManager] Photon PUN 2 not installed!");
 #endif
@@ -140,7 +193,7 @@ namespace TankGame.Network
         /// </summary>
         public void Disconnect()
         {
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
             if (PhotonNetwork.IsConnected)
             {
                 PhotonNetwork.Disconnect();
@@ -151,7 +204,7 @@ namespace TankGame.Network
 #endif
         }
 
-#if PHOTON_PUN_2
+#if PHOTON_UNITY_NETWORKING
         /// <summary>
         /// Спавнит танк для локального игрока
         /// </summary>
@@ -228,16 +281,18 @@ namespace TankGame.Network
 
         public void OnConnectedToMaster()
         {
-            Debug.Log("[PhotonNetworkManager] Connected to Photon Master Server");
+            Debug.Log("[PhotonNetworkManager] ✓ OnConnectedToMaster() callback called! Connected to Photon Master Server");
             isConnecting = false;
             
-            // Автоматически подключаемся к комнате
+            // Автоматически создаем/присоединяемся к комнате
+            // Комната всегда одна и та же для всех игроков
+            Debug.Log("[PhotonNetworkManager] Calling JoinOrCreateRoom()...");
             JoinOrCreateRoom();
         }
 
         public void OnJoinedRoom()
         {
-            Debug.Log($"[PhotonNetworkManager] Joined room: {PhotonNetwork.CurrentRoom.Name}");
+            Debug.Log($"[PhotonNetworkManager] ✓ OnJoinedRoom() callback called! Joined room: {PhotonNetwork.CurrentRoom.Name}");
             playerNumber = PhotonNetwork.LocalPlayer.ActorNumber;
             
             // Спавним танк для игрока
@@ -246,7 +301,9 @@ namespace TankGame.Network
 
         public void OnJoinRoomFailed(short returnCode, string message)
         {
-            Debug.LogWarning($"[PhotonNetworkManager] Failed to join room: {message}");
+            Debug.LogError($"[PhotonNetworkManager] ✗ OnJoinRoomFailed() callback called! ReturnCode: {returnCode}, Message: {message}");
+            // Повторная попытка подключения через 2 секунды
+            Invoke(nameof(JoinOrCreateRoom), 2f);
         }
 
         public void OnCreatedRoom()
@@ -275,12 +332,14 @@ namespace TankGame.Network
             isConnecting = false;
         }
 
-        // Неиспользуемые методы интерфейсов
+        // Неиспользуемые методы интерфейсов (для совместимости с Photon callbacks)
         public void OnConnected() { }
         public void OnLeftRoom() { }
         public void OnPlayerPropertiesUpdate(Player targetPlayer, ExitGames.Client.Photon.Hashtable changedProps) { }
         public void OnMasterClientSwitched(Player newMasterClient) { }
         public void OnRoomPropertiesUpdate(ExitGames.Client.Photon.Hashtable propertiesThatChanged) { }
+        public void OnCustomAuthenticationResponse(System.Collections.Generic.Dictionary<string, object> data) { }
+        public void OnCustomAuthenticationFailed(string debugMessage) { }
 
         #endregion
 #endif

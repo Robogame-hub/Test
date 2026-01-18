@@ -262,33 +262,31 @@ namespace TankGame.Network
         }
 
         /// <summary>
+        /// Отправляет команду стрельбы на все клиенты
+        /// </summary>
+        public void NetworkFire(float stability)
+        {
+#if PHOTON_PUN_2
+            if (photonView != null && photonView.IsMine)
+            {
+                photonView.RPC("RPC_Fire", RpcTarget.All, stability);
+            }
+#endif
+        }
+#endif
+
+        /// <summary>
         /// Устанавливает, является ли танк локальным игроком
+        /// Вынесен из блока #if для доступности из PhotonNetworkManager
         /// </summary>
         public void SetIsLocalPlayer(bool isLocal)
         {
             if (tankController != null)
             {
-                // Используем рефлексию для установки приватного поля isLocalPlayer
-                var field = typeof(TankController).GetField("isLocalPlayer", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (field != null)
-                {
-                    field.SetValue(tankController, isLocal);
-                }
+                // Используем публичный метод TankController
+                tankController.SetIsLocalPlayer(isLocal);
             }
         }
-
-        /// <summary>
-        /// Отправляет команду стрельбы на все клиенты
-        /// </summary>
-        public void NetworkFire(float stability)
-        {
-            if (photonView != null && photonView.IsMine)
-            {
-                photonView.RPC("RPC_Fire", RpcTarget.All, stability);
-            }
-        }
-#endif
 
         #region Debug
         private void OnDrawGizmos()

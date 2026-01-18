@@ -905,6 +905,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.UI.HealthUI
   tankHealth: {fileID: 377468842996706506}
   healthText: {fileID: 0}
+  healthTextTMP: {fileID: 717885323937387340}
   healthFormat: '{0} HP'
   showMaxHealth: 1
   fullHealthColor: {r: 0, g: 1, b: 0, a: 1}
