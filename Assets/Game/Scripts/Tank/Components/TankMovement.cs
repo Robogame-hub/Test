@@ -414,7 +414,14 @@ namespace TankGame.Tank.Components
             );
             
             // Применяем velocity сохраняя Y компонент (гравитация)
-            rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
+            Vector3 newVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
+            rb.linearVelocity = newVelocity;
+            
+            // Отладка - проверяем движение раз в секунду
+            if (Time.frameCount % 50 == 0 && (Mathf.Abs(vertical) > 0.01f || Mathf.Abs(horizontal) > 0.01f))
+            {
+                Debug.Log($"[TankMovement] ApplyMovement - V={vertical:F2}, H={horizontal:F2}, velocity={newVelocity}, rb.position={rb.position}");
+            }
 
             // Вращение танка
             currentYaw += horizontal * rotationSpeed * Time.fixedDeltaTime;

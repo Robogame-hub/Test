@@ -163,9 +163,32 @@ namespace TankGame.Network
             try
             {
                 // Проверка App ID
-                var photonServerSettings = photonNetworkType.GetProperty("PhotonServerSettings").GetValue(null);
-                var appIdRealtime = photonServerSettings.GetType().GetProperty("AppIdRealtime").GetValue(photonServerSettings) as string;
-                Debug.Log($"[PhotonDiagnostics] App ID: {(string.IsNullOrEmpty(appIdRealtime) ? "✗ NOT SET" : "✓ SET")}");
+                var photonServerSettingsProperty = photonNetworkType.GetProperty("PhotonServerSettings");
+                if (photonServerSettingsProperty != null)
+                {
+                    var photonServerSettings = photonServerSettingsProperty.GetValue(null);
+                    if (photonServerSettings != null)
+                    {
+                        var appIdProperty = photonServerSettings.GetType().GetProperty("AppIdRealtime");
+                        if (appIdProperty != null)
+                        {
+                            var appIdRealtime = appIdProperty.GetValue(photonServerSettings) as string;
+                            Debug.Log($"[PhotonDiagnostics] App ID: {(string.IsNullOrEmpty(appIdRealtime) ? "✗ NOT SET" : "✓ SET")}");
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[PhotonDiagnostics] AppIdRealtime property not found!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[PhotonDiagnostics] PhotonServerSettings is null!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[PhotonDiagnostics] PhotonServerSettings property not found!");
+                }
 
                 // Проверка подключения
                 bool isConnected = (bool)photonNetworkType.GetProperty("IsConnected").GetValue(null);

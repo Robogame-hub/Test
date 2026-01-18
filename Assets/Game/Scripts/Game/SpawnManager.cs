@@ -148,6 +148,22 @@ namespace TankGame.Game
         }
         
         /// <summary>
+        /// Регистрирует танк в спавн-поинте без повторного спавна
+        /// Используется когда танк уже заспавнен (например, через Photon)
+        /// </summary>
+        public void RegisterTankAtSpawnPoint(TankController tank, SpawnPoint spawnPoint)
+        {
+            if (tank == null || spawnPoint == null)
+                return;
+            
+            // Сохраняем привязку танка к спавн-поинту
+            playerSpawnPoints[tank] = spawnPoint;
+            
+            // Помечаем спавн-поинт как занятый
+            spawnPoint.SetOccupied(true, tank);
+        }
+        
+        /// <summary>
         /// Получить спавн-поинт для конкретного танка
         /// </summary>
         public SpawnPoint GetTankSpawnPoint(TankController tank)

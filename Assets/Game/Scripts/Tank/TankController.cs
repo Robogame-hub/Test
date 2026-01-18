@@ -1,6 +1,9 @@
 using UnityEngine;
 using TankGame.Commands;
 using TankGame.Tank.Components;
+#if PHOTON_UNITY_NETWORKING
+using TankGame.Network;
+#endif
 
 namespace TankGame.Tank
 {
@@ -47,7 +50,13 @@ namespace TankGame.Tank
         /// </summary>
         public void SetIsLocalPlayer(bool isLocal)
         {
+            bool wasLocal = isLocalPlayer;
             isLocalPlayer = isLocal;
+            
+            if (wasLocal != isLocal)
+            {
+                Debug.Log($"[TankController] SetIsLocalPlayer changed: {wasLocal} -> {isLocal} for {gameObject.name}");
+            }
         }
 
         private void Awake()
@@ -72,10 +81,26 @@ namespace TankGame.Tank
 
         private void Update()
         {
+            // Отладка - проверяем состояние раз в секунду
+            if (Time.frameCount % 60 == 0)
+            {
+                Debug.Log($"[TankController] Update - isLocalPlayer={isLocalPlayer}, inputHandler={(inputHandler != null ? "OK" : "NULL")}, turret={(turret != null ? "OK" : "NULL")}, movement={(movement != null ? "OK" : "NULL")} for {gameObject.name}");
+            }
+            
             if (!isLocalPlayer)
             {
                 // Для удаленных игроков применяем интерполяцию
                 // (здесь будет логика интерполяции при интеграции с сетью)
+                return;
+            }
+
+            // Проверяем, что inputHandler инициализирован
+            if (inputHandler == null)
+            {
+                if (Time.frameCount % 60 == 0)
+                {
+                    Debug.LogError($"[TankController] inputHandler is NULL for local player {gameObject.name}!");
+                }
                 return;
             }
 
@@ -107,7 +132,19 @@ namespace TankGame.Tank
         /// </summary>
         private void ProcessLocalInput()
         {
+            if (inputHandler == null)
+            {
+                Debug.LogError($"[TankController] ProcessLocalInput called but inputHandler is NULL for {gameObject.name}!");
+                return;
+            }
+            
             TankInputCommand input = inputHandler.GetCurrentInput();
+            
+            // Отладка - показываем ввод раз в секунду
+            if (Time.frameCount % 60 == 0 && (Mathf.Abs(input.VerticalInput) > 0.01f || Mathf.Abs(input.HorizontalInput) > 0.01f || input.IsAiming || input.IsFiring))
+            {
+                Debug.Log($"[TankController] Input: V={input.VerticalInput:F2}, H={input.HorizontalInput:F2}, Aiming={input.IsAiming}, Firing={input.IsFiring}");
+            }
             
             // Отладка двойного выстрела
             if (input.IsFiring)
@@ -144,8 +181,21 @@ namespace TankGame.Tank
                 
                 if (weapon.CanFire)
                 {
-                    weapon.Fire(turret.CurrentStability);
+                    float stability = turret.CurrentStability;
+                    weapon.Fire(stability);
                     turret.ResetStability();
+                    
+                    // Синхронизация стрельбы через Photon (только для локального игрока)
+#if PHOTON_UNITY_NETWORKING
+                    if (isLocalPlayer)
+                    {
+                        TankNetworkPhoton networkPhoton = GetComponent<TankNetworkPhoton>();
+                        if (networkPhoton != null)
+                        {
+                            networkPhoton.NetworkFire(stability);
+                        }
+                    }
+#endif
                 }
                 else
                 {

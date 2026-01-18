@@ -1,10 +1,12 @@
 using UnityEngine;
 using TankGame.Tank;
+using TankGame.Network;
 
 namespace TankGame.Game
 {
     /// <summary>
     /// Инициализатор игры - спавнит танки при старте
+    /// ВАЖНО: Если Photon включен, танки должны спавниться через PhotonNetworkManager, а не здесь!
     /// </summary>
     public class GameInitializer : MonoBehaviour
     {
@@ -12,7 +14,7 @@ namespace TankGame.Game
         [Tooltip("Префаб танка для спавна (если нужно спавнить автоматически)")]
         [SerializeField] private GameObject tankPrefab;
         
-        [Tooltip("Автоматически спавнить танки при старте")]
+        [Tooltip("Автоматически спавнить танки при старте (ТОЛЬКО для офлайн-режима!)")]
         [SerializeField] private bool autoSpawnOnStart = false;
         
         [Tooltip("Количество танков для спавна (если autoSpawnOnStart = true)")]
@@ -29,9 +31,41 @@ namespace TankGame.Game
         
         /// <summary>
         /// Инициализирует игру и спавнит танки
+        /// ВАЖНО: Не спавнит танки, если Photon подключен (PhotonNetworkManager должен это делать)
         /// </summary>
         private void InitializeGame()
         {
+#if PHOTON_UNITY_NETWORKING
+            // ПРОВЕРКА: Если Photon доступен, проверяем подключение
+            bool photonAvailable = false;
+            try
+            {
+                var photonNetworkType = System.Type.GetType("Photon.Pun.PhotonNetwork, Assembly-CSharp")
+                                         ?? System.Type.GetType("Photon.Pun.PhotonNetwork, PhotonUnityNetworking");
+                if (photonNetworkType != null)
+                {
+                    bool isConnected = (bool)photonNetworkType.GetProperty("IsConnected").GetValue(null);
+                    bool isInRoom = (bool)photonNetworkType.GetProperty("InRoom").GetValue(null);
+                    bool isConnecting = PhotonNetworkManager.Instance != null && PhotonNetworkManager.Instance.enabled;
+                    
+                    if (isConnected || isInRoom || isConnecting)
+                    {
+                        photonAvailable = true;
+                        Debug.Log("[GameInitializer] Photon is enabled! Skipping local spawn - PhotonNetworkManager will spawn tanks via Photon.");
+                        // НЕ спавним танки локально, если Photon используется
+                        return;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[GameInitializer] Could not check Photon status: {e.Message}");
+            }
+            
+            // Если Photon не подключен - спавним локально (офлайн-режим)
+            Debug.Log("[GameInitializer] Photon not connected/available - using local spawn (offline mode)");
+#endif
+
             // Если есть существующий танк в сцене
             if (existingTank != null)
             {
@@ -39,9 +73,10 @@ namespace TankGame.Game
                 return;
             }
             
-            // Автоматический спавн префабов
+            // Автоматический спавн префабов (только для офлайн-режима!)
             if (autoSpawnOnStart && tankPrefab != null)
             {
+                Debug.LogWarning("[GameInitializer] autoSpawnOnStart is enabled - this is for OFFLINE mode only! For online multiplayer, disable this and use PhotonNetworkManager instead.");
                 for (int i = 0; i < spawnCount; i++)
                 {
                     SpawnTankPrefab();
