@@ -153,6 +153,9 @@ namespace TankGame.Tank.Components
                 spread += movementFactor * movementSpreadMultiplier;
             }
             
+            // Защита от отрицательного разброса
+            spread = Mathf.Max(0f, spread);
+            
             // ШАГ 2: Найти точку куда смотрит прицел
             // ─────────────────────────────────────────────────────────────
             // GetAimPoint() делает raycast от камеры через центр экрана
@@ -164,17 +167,28 @@ namespace TankGame.Tank.Components
             // Это и есть "raycast от FirePoint в направлении прицела"!
             Vector3 direction = (targetPoint - firePoint.position).normalized;
             
+            // Проверка на нулевое направление
+            if (direction.magnitude < 0.001f)
+            {
+                Debug.LogWarning("[TankWeapon] Invalid direction! Using firePoint.forward");
+                direction = firePoint.forward;
+            }
+            
             Debug.Log($"[TankWeapon] Sniper Shot: FirePoint={firePoint.position} → Target={targetPoint}, Spread={spread:F2}°");
             
             // ШАГ 4: Применяем разброс (в стабильном состоянии разброс = 0.5°)
             // ─────────────────────────────────────────────────────────────
-            float randomAngleX = Random.Range(-spread, spread);
-            float randomAngleY = Random.Range(-spread, spread);
+            if (spread > 0.001f)
+            {
+                float randomAngleX = Random.Range(-spread, spread);
+                float randomAngleY = Random.Range(-spread, spread);
+                
+                // Применяем разброс вокруг направления к прицелу
+                Quaternion spreadRotation = Quaternion.Euler(randomAngleX, randomAngleY, 0f);
+                Quaternion aimRotation = Quaternion.LookRotation(direction);
+                direction = aimRotation * spreadRotation * Vector3.forward;
+            }
             
-            // Применяем разброс вокруг направления к прицелу
-            Quaternion spreadRotation = Quaternion.Euler(randomAngleX, randomAngleY, 0f);
-            Quaternion aimRotation = Quaternion.LookRotation(direction);
-            direction = aimRotation * spreadRotation * Vector3.forward;
             direction = direction.normalized;
             
             // РЕЗУЛЬТАТ: Пуля летит ОТ FirePoint В направлении прицела (± разброс)

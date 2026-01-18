@@ -11,8 +11,18 @@ namespace TankGame.Weapons
     [RequireComponent(typeof(Rigidbody))]
     public class Bullet : MonoBehaviour, IPoolable
     {
+        [Header("Damage Settings")]
         [Tooltip("Урон наносимый пулей при попадании")]
         [SerializeField] private float damage = 10f;
+        
+        [Header("Penetration Settings")]
+        [Tooltip("Шанс пробития брони (0-100%). При успешном пробитии наносится полный урон")]
+        [Range(0f, 100f)]
+        [SerializeField] private float penetrationChance = 70f;
+        
+        [Tooltip("Множитель урона при непробитии (0.5 = 50% урона, 0.3 = 30% урона)")]
+        [Range(0f, 1f)]
+        [SerializeField] private float nonPenetrationDamageMultiplier = 0.5f;
         
         [Header("Tracer Settings")]
         [Tooltip("Включить трассер (визуальный след)")]
@@ -131,7 +141,9 @@ namespace TankGame.Weapons
             IDamageable damageable = hitObject.GetComponent<IDamageable>();
             if (damageable != null && damageable.IsAlive())
             {
-                damageable.TakeDamage(damage, hitPoint, hitNormal);
+                // Вычисляем финальный урон с учетом пробития
+                float finalDamage = CalculateDamageWithPenetration();
+                damageable.TakeDamage(finalDamage, hitPoint, hitNormal);
             }
 
             // Эффект попадания
@@ -139,6 +151,29 @@ namespace TankGame.Weapons
 
             // Возвращаем в пул
             ReturnToPool();
+        }
+        
+        /// <summary>
+        /// Вычисляет финальный урон с учетом шанса пробития
+        /// </summary>
+        private float CalculateDamageWithPenetration()
+        {
+            // Проверяем шанс пробития (0-100%)
+            float randomValue = Random.Range(0f, 100f);
+            
+            if (randomValue <= penetrationChance)
+            {
+                // Пробитие успешно - полный урон
+                Debug.Log($"[Bullet] Penetration SUCCESS! Full damage: {damage}");
+                return damage;
+            }
+            else
+            {
+                // Пробитие не удалось - урон уменьшается
+                float reducedDamage = damage * nonPenetrationDamageMultiplier;
+                Debug.Log($"[Bullet] Penetration FAILED! Reduced damage: {reducedDamage} (from {damage}, multiplier: {nonPenetrationDamageMultiplier})");
+                return reducedDamage;
+            }
         }
 
         private void PlayImpactEffect(Vector3 position, Vector3 normal)

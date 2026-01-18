@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Tank;
+using TankGame.Tank.Components;
 
 namespace TankGame.Game
 {
@@ -46,20 +47,53 @@ namespace TankGame.Game
             if (tank == null)
                 return;
             
+            // Включаем танк (если был выключен)
+            tank.gameObject.SetActive(true);
+            
             // Устанавливаем позицию и поворот
             tank.transform.SetPositionAndRotation(Position, Rotation);
             
-            // Сбрасываем физику
-            var rb = tank.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
+            // Активируем танк (включаем все компоненты)
+            ActivateTank(tank);
             
             SetOccupied(true, tank);
             
             Debug.Log($"[SpawnPoint] Tank {tank.name} spawned at point {spawnPointIndex}");
+        }
+        
+        /// <summary>
+        /// Активирует танк (включает все компоненты для работы)
+        /// </summary>
+        private void ActivateTank(TankController tank)
+        {
+            // Включаем все компоненты танка
+            if (tank != null)
+            {
+                tank.enabled = true;
+            }
+            
+            // Включаем коллайдеры
+            Collider[] colliders = tank.GetComponentsInChildren<Collider>();
+            foreach (var collider in colliders)
+            {
+                collider.enabled = true;
+            }
+            
+            // Включаем физику (сбрасываем velocity)
+            Rigidbody rb = tank.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = false;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+            
+            // Включаем видимость танка
+            Renderer[] renderers = tank.GetComponentsInChildren<Renderer>();
+            foreach (var renderer in renderers)
+            {
+                renderer.enabled = true;
+            }
         }
         
         private void OnDrawGizmos()

@@ -81,58 +81,35 @@ namespace TankGame.UI
         [Tooltip("Слои которые считаются целями (оставить пустым = все слои)")]
         [SerializeField] private LayerMask targetLayers = -1;
         
-        [Header("Auto Find")]
-        [Tooltip("Автоматически найти TankWeapon и TankTurret при старте")]
-        [SerializeField] private bool autoFindComponents = true;
+        [Header("Crosshair Images")]
+        [Tooltip("Массив всех Image компонентов прицела (для изменения цвета)")]
+        [SerializeField] private Image[] crosshairImages;
 
         private float currentSpread;
-        private Image[] crosshairImages;
 
         private void Start()
         {
-            if (autoFindComponents)
-            {
-                FindComponents();
-            }
-            
             InitializeCrosshair();
             
             // Начальное состояние
             currentSpread = minSpread;
-        }
-
-        private void FindComponents()
-        {
-            // Ищем танк игрока
-            GameObject playerTank = GameObject.FindGameObjectWithTag("Player");
-            if (playerTank == null)
-            {
-                // Fallback: ищем любой танк с TankWeapon
-                weapon = FindObjectOfType<TankWeapon>();
-                turret = FindObjectOfType<TankTurret>();
-                tankMovement = FindObjectOfType<TankMovement>();
-            }
-            else
-            {
-                weapon = playerTank.GetComponent<TankWeapon>();
-                turret = playerTank.GetComponent<TankTurret>();
-                tankMovement = playerTank.GetComponent<TankMovement>();
-            }
             
+            // Проверка назначения компонентов
             if (weapon == null)
-                Debug.LogWarning("[CrosshairUI] TankWeapon not found! Assign manually.");
-            
+                Debug.LogWarning("[CrosshairUI] TankWeapon not assigned! Assign manually in Inspector.");
             if (turret == null)
-                Debug.LogWarning("[CrosshairUI] TankTurret not found! Assign manually.");
-            
+                Debug.LogWarning("[CrosshairUI] TankTurret not assigned! Assign manually in Inspector.");
             if (tankMovement == null)
-                Debug.LogWarning("[CrosshairUI] TankMovement not found! Movement spread will not be shown.");
+                Debug.LogWarning("[CrosshairUI] TankMovement not assigned! Movement spread will not be shown.");
         }
 
         private void InitializeCrosshair()
         {
-            // Собираем все Image компоненты для изменения цвета
-            crosshairImages = GetComponentsInChildren<Image>();
+            // Если не назначены вручную, собираем автоматически (только для обратной совместимости)
+            if (crosshairImages == null || crosshairImages.Length == 0)
+            {
+                crosshairImages = GetComponentsInChildren<Image>();
+            }
             
             // Настраиваем cooldown circle
             if (cooldownCircle != null)
