@@ -21,11 +21,9 @@ namespace TankGame.Tank
 
         private void Start()
         {
-            // Скрываем курсор при запуске если включена опция
-            if (hideCursorInGame)
-            {
-                LockCursor();
-            }
+            // В топдаун шутере курсор видимый (для прицела)
+            // Не скрываем курсор, так как прицел следует за ним
+            UnlockCursor();
         }
 
         private void Update()

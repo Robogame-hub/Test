@@ -1,9 +1,6 @@
 using UnityEngine;
 using TankGame.Commands;
 using TankGame.Tank.Components;
-#if PHOTON_UNITY_NETWORKING
-using TankGame.Network;
-#endif
 
 namespace TankGame.Tank
 {
@@ -30,13 +27,9 @@ namespace TankGame.Tank
         [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
 
-        [Header("Network Settings")]
+        [Header("Player Settings")]
         [Tooltip("Является ли этот танк локальным игроком (управляется на этом клиенте)")]
         [SerializeField] private bool isLocalPlayer = true;
-        [Tooltip("Частота синхронизации по сети (Герц)")]
-        [SerializeField] private float networkSyncRate = 20f;
-
-        private float lastNetworkSyncTime;
 
         // Публичные свойства для доступа к компонентам
         public TankMovement Movement => movement;
@@ -106,12 +99,6 @@ namespace TankGame.Tank
 
             // Локальный игрок - обрабатываем ввод (НЕ физический)
             ProcessLocalInput();
-
-            // Сетевая синхронизация
-            if (ShouldSyncNetwork())
-            {
-                SyncToNetwork();
-            }
         }
         
         private void FixedUpdate()
@@ -164,14 +151,28 @@ namespace TankGame.Tank
             if (command.IsAiming)
             {
                 if (!turret.IsAiming)
+                {
+                    Debug.Log($"[TankController] Calling turret.StartAiming() - turret component: {(turret != null ? "OK" : "NULL")}");
                     turret.StartAiming();
+                }
+                else
+                {
+                    // Отладка: прицеливание уже активно
+                    if (Time.frameCount % 60 == 0)
+                    {
+                        Debug.Log($"[TankController] Aiming already active - turret.IsAiming={turret.IsAiming}, turret component: {(turret != null ? turret.GetType().Name : "NULL")}");
+                    }
+                }
 
-                turret.RotateTurret(command.MouseDelta);
+                // Поворот башни будет реализован отдельно
             }
             else
             {
                 if (turret.IsAiming)
+                {
+                    Debug.Log($"[TankController] Calling turret.StopAiming()");
                     turret.StopAiming();
+                }
             }
 
             // Стрельба (не физическое, можно в Update)
@@ -184,18 +185,6 @@ namespace TankGame.Tank
                     float stability = turret.CurrentStability;
                     weapon.Fire(stability);
                     turret.ResetStability();
-                    
-                    // Синхронизация стрельбы через Photon (только для локального игрока)
-#if PHOTON_UNITY_NETWORKING
-                    if (isLocalPlayer)
-                    {
-                        TankNetworkPhoton networkPhoton = GetComponent<TankNetworkPhoton>();
-                        if (networkPhoton != null)
-                        {
-                            networkPhoton.NetworkFire(stability);
-                        }
-                    }
-#endif
                 }
                 else
                 {
@@ -213,49 +202,6 @@ namespace TankGame.Tank
             movement.ApplyMovement(command.VerticalInput, command.HorizontalInput);
         }
 
-        /// <summary>
-        /// Проверка нужно ли синхронизировать с сетью
-        /// </summary>
-        private bool ShouldSyncNetwork()
-        {
-            if (!isLocalPlayer)
-                return false;
-
-            float syncInterval = 1f / networkSyncRate;
-            if (Time.time - lastNetworkSyncTime >= syncInterval)
-            {
-                lastNetworkSyncTime = Time.time;
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Синхронизация состояния с сетью
-        /// </summary>
-        private void SyncToNetwork()
-        {
-            // Здесь будет код для отправки состояния танка по сети
-            // Например, через Mirror, Netcode for GameObjects или Photon
-            // 
-            // NetworkWriter writer = new NetworkWriter();
-            // movement.Serialize(writer);
-            // turret.Serialize(writer);
-            // SendToServer(writer);
-        }
-
-        /// <summary>
-        /// Применение состояния с сети (для удаленных игроков)
-        /// </summary>
-        public void ApplyNetworkState(TankNetworkState state)
-        {
-            if (isLocalPlayer)
-                return; // Локальный игрок не применяет сетевое состояние
-
-            movement.SetPositionAndRotation(state.Position, state.Rotation);
-            // Применяем другие параметры из state
-        }
 
         #region Debug
 
@@ -277,21 +223,6 @@ namespace TankGame.Tank
         }
 
         #endregion
-    }
-
-    /// <summary>
-    /// Структура для сетевой синхронизации состояния танка
-    /// </summary>
-    [System.Serializable]
-    public struct TankNetworkState
-    {
-        public Vector3 Position;
-        public Quaternion Rotation;
-        public Vector3 Velocity;
-        public Quaternion TurretRotation;
-        public Quaternion CannonRotation;
-        public float Health;
-        public float Timestamp;
     }
 }
 

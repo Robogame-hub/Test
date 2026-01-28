@@ -1,5 +1,4 @@
 using UnityEngine;
-using TankGame.Core;
 
 namespace TankGame.Tank.Components
 {
@@ -8,7 +7,7 @@ namespace TankGame.Tank.Components
     /// Отвечает за перемещение, выравнивание по поверхности и наклоны
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
-    public class TankMovement : MonoBehaviour, INetworkSyncable
+    public class TankMovement : MonoBehaviour
     {
         [Header("Movement Settings")]
         [Tooltip("Максимальная скорость движения танка")]
@@ -690,24 +689,6 @@ namespace TankGame.Tank.Components
             currentYaw = rotation.eulerAngles.y;
         }
 
-        public void Serialize(NetworkWriter writer)
-        {
-            writer.WriteVector3(transform.position);
-            writer.WriteQuaternion(transform.rotation);
-            writer.WriteVector3(rb.linearVelocity);
-            writer.WriteFloat(currentYaw);
-        }
-
-        public void Deserialize(NetworkReader reader)
-        {
-            Vector3 position = reader.ReadVector3();
-            Quaternion rotation = reader.ReadQuaternion();
-            Vector3 velocity = reader.ReadVector3();
-            currentYaw = reader.ReadFloat();
-
-            transform.SetPositionAndRotation(position, rotation);
-            rb.linearVelocity = velocity;
-        }
         
         #region Gizmos - Визуализация точек опоры
         

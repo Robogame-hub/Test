@@ -5,8 +5,8 @@ using TankGame.Tank.Components;
 namespace TankGame.UI
 {
     /// <summary>
-    /// UI прицел для игры от третьего лица
-    /// Показывает разброс и перезарядку
+    /// UI прицел для топдаун танкового шутера
+    /// Следует за курсором мыши и показывает разброс и перезарядку
     /// </summary>
     public class CrosshairUI : MonoBehaviour
     {
@@ -19,6 +19,16 @@ namespace TankGame.UI
         
         [Tooltip("Ссылка на TankMovement для отслеживания движения танка")]
         [SerializeField] private TankMovement tankMovement;
+        
+        [Header("Crosshair Position")]
+        [Tooltip("RectTransform прицела (для позиционирования по курсору)")]
+        [SerializeField] private RectTransform crosshairRect;
+        [Tooltip("Отступ от краев экрана (пиксели)")]
+        [SerializeField] private float screenEdgePadding = 50f;
+        [Tooltip("Камера для следования за прицелом")]
+        [SerializeField] private Camera followCamera;
+        [Tooltip("Скорость следования камеры за прицелом")]
+        [SerializeField] private float cameraFollowSpeed = 5f;
         
         [Header("Crosshair Elements")]
         [Tooltip("Центральная точка прицела")]
@@ -87,12 +97,27 @@ namespace TankGame.UI
 
         private float currentSpread;
 
+        private Canvas canvas;
+        
         private void Start()
         {
             InitializeCrosshair();
             
             // Начальное состояние
             currentSpread = minSpread;
+            
+            // Получаем Canvas для конвертации координат
+            canvas = GetComponentInParent<Canvas>();
+            if (canvas == null)
+            {
+                Debug.LogWarning("[CrosshairUI] Canvas not found! Crosshair will not follow mouse cursor.");
+            }
+            
+            // Получаем RectTransform если не назначен
+            if (crosshairRect == null)
+            {
+                crosshairRect = GetComponent<RectTransform>();
+            }
             
             // Проверка назначения компонентов
             if (weapon == null)
@@ -123,6 +148,9 @@ namespace TankGame.UI
 
         private void Update()
         {
+            // Обновляем позицию прицела по курсору мыши
+            UpdateCrosshairPosition();
+            
             if (weapon != null)
             {
                 UpdateSpread();
@@ -131,6 +159,97 @@ namespace TankGame.UI
             
             // UpdateColor всегда вызывается (не зависит от weapon)
             UpdateColor();
+        }
+        
+        /// <summary>
+        /// Обновляет позицию прицела по курсору мыши с ограничением границами экрана
+        /// </summary>
+        private void UpdateCrosshairPosition()
+        {
+            if (crosshairRect == null || canvas == null)
+                return;
+            
+            // Конвертируем позицию мыши в координаты Canvas
+            Vector2 mousePosition;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvas.transform as RectTransform,
+                Input.mousePosition,
+                canvas.worldCamera,
+                out mousePosition
+            );
+            
+            // Получаем границы Canvas
+            RectTransform canvasRect = canvas.transform as RectTransform;
+            Vector2 canvasSize = canvasRect.sizeDelta;
+            
+            // Ограничиваем позицию границами экрана с отступом
+            float minX = -canvasSize.x * 0.5f + screenEdgePadding;
+            float maxX = canvasSize.x * 0.5f - screenEdgePadding;
+            float minY = -canvasSize.y * 0.5f + screenEdgePadding;
+            float maxY = canvasSize.y * 0.5f - screenEdgePadding;
+            
+            mousePosition.x = Mathf.Clamp(mousePosition.x, minX, maxX);
+            mousePosition.y = Mathf.Clamp(mousePosition.y, minY, maxY);
+            
+            // Устанавливаем позицию прицела
+            crosshairRect.anchoredPosition = mousePosition;
+            
+            // Если прицел упирается в край экрана, двигаем камеру
+            UpdateCameraFollow();
+        }
+        
+        /// <summary>
+        /// Обновляет позицию камеры для следования за прицелом
+        /// </summary>
+        private void UpdateCameraFollow()
+        {
+            if (followCamera == null)
+            {
+                followCamera = Camera.main;
+            }
+            
+            if (followCamera == null)
+                return;
+            
+            // Если прицел близко к краю экрана, двигаем камеру
+            Vector2 screenPos = Input.mousePosition;
+            Vector2 screenSize = new Vector2(Screen.width, Screen.height);
+            
+            float edgeThreshold = screenEdgePadding;
+            Vector3 cameraOffset = Vector3.zero;
+            
+            // Проверяем края экрана
+            if (screenPos.x < edgeThreshold)
+            {
+                // Левый край - двигаем камеру влево
+                float factor = (edgeThreshold - screenPos.x) / edgeThreshold;
+                cameraOffset.x = -factor * cameraFollowSpeed * Time.deltaTime;
+            }
+            else if (screenPos.x > screenSize.x - edgeThreshold)
+            {
+                // Правый край - двигаем камеру вправо
+                float factor = (screenPos.x - (screenSize.x - edgeThreshold)) / edgeThreshold;
+                cameraOffset.x = factor * cameraFollowSpeed * Time.deltaTime;
+            }
+            
+            if (screenPos.y < edgeThreshold)
+            {
+                // Нижний край - двигаем камеру вниз
+                float factor = (edgeThreshold - screenPos.y) / edgeThreshold;
+                cameraOffset.z = -factor * cameraFollowSpeed * Time.deltaTime;
+            }
+            else if (screenPos.y > screenSize.y - edgeThreshold)
+            {
+                // Верхний край - двигаем камеру вверх
+                float factor = (screenPos.y - (screenSize.y - edgeThreshold)) / edgeThreshold;
+                cameraOffset.z = factor * cameraFollowSpeed * Time.deltaTime;
+            }
+            
+            // Применяем смещение камеры (в топдаун шутере камера движется по XZ плоскости)
+            if (cameraOffset.magnitude > 0.01f)
+            {
+                followCamera.transform.position += cameraOffset;
+            }
         }
 
         private void UpdateSpread()
@@ -226,7 +345,7 @@ namespace TankGame.UI
         }
         
         /// <summary>
-        /// Проверяет есть ли цель под прицелом (raycast от камеры)
+        /// Проверяет есть ли цель под курсором мыши (raycast от камеры к курсору)
         /// </summary>
         private bool CheckForTarget()
         {
@@ -234,10 +353,10 @@ namespace TankGame.UI
             if (mainCamera == null)
                 return false;
             
-            // Raycast от центра экрана
-            Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            // Raycast от курсора мыши
+            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             
-            // Проверяем есть ли что-то под прицелом (с учетом layerMask)
+            // Проверяем есть ли что-то под курсором (с учетом layerMask)
             if (Physics.Raycast(ray, out RaycastHit hit, maxTargetDistance, targetLayers))
             {
                 // Можно добавить дополнительную проверку по тегам или компонентам

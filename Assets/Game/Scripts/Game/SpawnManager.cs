@@ -97,26 +97,30 @@ namespace TankGame.Game
         }
         
         /// <summary>
-        /// Получить свободный спавн-поинт
+        /// Получить случайный спавн-поинт (для локального спавна)
         /// </summary>
-        public SpawnPoint GetFreeSpawnPoint()
+        public SpawnPoint GetRandomSpawnPoint()
         {
             if (spawnPoints == null || spawnPoints.Length == 0)
                 return null;
             
-            // Ищем первый свободный поинт
-            foreach (var spawnPoint in spawnPoints)
-            {
-                if (spawnPoint != null && !spawnPoint.IsOccupied)
-                {
-                    return spawnPoint;
-                }
-            }
+            // Выбираем случайный спавн-поинт
+            var availablePoints = spawnPoints.Where(sp => sp != null).ToArray();
+            if (availablePoints.Length == 0)
+                return null;
             
-            // Если все заняты, выбираем случайный
-            var randomPoint = spawnPoints[Random.Range(0, spawnPoints.Length)];
-            Debug.LogWarning($"[SpawnManager] All spawn points occupied! Using random point: {randomPoint.SpawnPointIndex}");
+            var randomPoint = availablePoints[Random.Range(0, availablePoints.Length)];
+            Debug.Log($"[SpawnManager] Selected random spawn point: {randomPoint.SpawnPointIndex}");
             return randomPoint;
+        }
+        
+        /// <summary>
+        /// Получить свободный спавн-поинт (для обратной совместимости)
+        /// </summary>
+        public SpawnPoint GetFreeSpawnPoint()
+        {
+            // В локальном режиме просто возвращаем случайный
+            return GetRandomSpawnPoint();
         }
         
         /// <summary>
@@ -149,7 +153,6 @@ namespace TankGame.Game
         
         /// <summary>
         /// Регистрирует танк в спавн-поинте без повторного спавна
-        /// Используется когда танк уже заспавнен (например, через Photon)
         /// </summary>
         public void RegisterTankAtSpawnPoint(TankController tank, SpawnPoint spawnPoint)
         {
