@@ -55,36 +55,6 @@ namespace TankGame.Tank.Components
         [Tooltip("Расстояние от центра танка до автоматически созданных точек")]
         [SerializeField] private float autoPointOffset = 1f;
         
-        [Header("Track Rollers (Ролики гусениц - Подвеска)")]
-        [Tooltip("Ролики левой гусеницы (6 штук)")]
-        [SerializeField] private Transform[] leftTrackRollers = new Transform[6];
-        [Tooltip("Ролики правой гусеницы (6 штук)")]
-        [SerializeField] private Transform[] rightTrackRollers = new Transform[6];
-        [Tooltip("Включить движение роликов вверх-вниз")]
-        [SerializeField] private bool enableRollerSuspension = true;
-        
-        [Header("Roller Offset Limits (Пороги смещения)")]
-        [Tooltip("Минимальное смещение ролика вниз")]
-        [SerializeField] private float rollerMinOffset = -0.1f;
-        [Tooltip("Максимальное смещение ролика вверх")]
-        [SerializeField] private float rollerMaxOffset = 0.1f;
-        
-        [Header("Roller Speed Settings")]
-        [Tooltip("Скорость движения роликов")]
-        [SerializeField] private float rollerSpeed = 2f;
-        [Tooltip("Минимальная скорость танка для движения роликов")]
-        [SerializeField] private float minSpeedForSuspension = 0.5f;
-        [Tooltip("Частота обновления роликов (меньше = лучше производительность)")]
-        [SerializeField] private int rollerUpdateFrequency = 2; // Обновлять каждые N кадров
-        
-        [Header("Auto-Find Rollers")]
-        [Tooltip("Автоматически найти ролики по имени при старте")]
-        [SerializeField] private bool autoFindRollers = true;
-        [Tooltip("Префикс имени для левых роликов")]
-        [SerializeField] private string leftRollerPrefix = "LeftRoller";
-        [Tooltip("Префикс имени для правых роликов")]
-        [SerializeField] private string rightRollerPrefix = "RightRoller";
-        
         [Header("Physics Tilt Settings")]
         [Tooltip("Включить физический наклон при движении и поворотах")]
         [SerializeField] private bool enablePhysicsTilt = true;
@@ -121,12 +91,6 @@ namespace TankGame.Tank.Components
         private float lastVerticalInput;
         private float lastHorizontalInput;
         
-        // Для подвески роликов
-        private Vector3[] leftRollerInitialPositions;
-        private Vector3[] rightRollerInitialPositions;
-        private float[] leftRollerOffsets;
-        private float[] rightRollerOffsets;
-        private int rollerUpdateCounter; // Счетчик для пропуска кадров
         private int groundCheckCounter; // Счетчик для пропуска проверок земли
         private Quaternion cachedGroundRotation; // Кэшированное вращение
 
@@ -145,12 +109,7 @@ namespace TankGame.Tank.Components
         {
             currentYaw = transform.eulerAngles.y;
             
-            // Найти TankEngine (опционально)
             tankEngine = GetComponent<TankEngine>();
-            if (tankEngine == null)
-            {
-                Debug.LogWarning("[TankMovement] TankEngine not found! Tank can move without engine.");
-            }
             
             // Автоматически создаем точки если не назначены
             if (autoCreatePoints)
@@ -158,52 +117,6 @@ namespace TankGame.Tank.Components
                 CreateSuspensionPointsIfNeeded();
             }
             
-            // Автоматически находим ролики если не назначены
-            if (autoFindRollers)
-            {
-                FindRollersIfNeeded();
-            }
-            
-            // Инициализируем подвеску роликов
-            InitializeRollerSuspension();
-        }
-        
-        /// <summary>
-        /// Инициализирует систему подвески роликов
-        /// </summary>
-        private void InitializeRollerSuspension()
-        {
-            // Сохраняем начальные позиции левых роликов
-            if (leftTrackRollers != null && leftTrackRollers.Length > 0)
-            {
-                leftRollerInitialPositions = new Vector3[leftTrackRollers.Length];
-                leftRollerOffsets = new float[leftTrackRollers.Length];
-                
-                for (int i = 0; i < leftTrackRollers.Length; i++)
-                {
-                    if (leftTrackRollers[i] != null)
-                    {
-                        leftRollerInitialPositions[i] = leftTrackRollers[i].localPosition;
-                        leftRollerOffsets[i] = Random.Range(0f, 100f); // Случайное начальное смещение
-                    }
-                }
-            }
-            
-            // Сохраняем начальные позиции правых роликов
-            if (rightTrackRollers != null && rightTrackRollers.Length > 0)
-            {
-                rightRollerInitialPositions = new Vector3[rightTrackRollers.Length];
-                rightRollerOffsets = new float[rightTrackRollers.Length];
-                
-                for (int i = 0; i < rightTrackRollers.Length; i++)
-                {
-                    if (rightTrackRollers[i] != null)
-                    {
-                        rightRollerInitialPositions[i] = rightTrackRollers[i].localPosition;
-                        rightRollerOffsets[i] = Random.Range(0f, 100f);
-                    }
-                }
-            }
         }
         
         /// <summary>
@@ -244,74 +157,6 @@ namespace TankGame.Tank.Components
             }
         }
         
-        /// <summary>
-        /// Автоматически находит и назначает ролики по имени
-        /// </summary>
-        private void FindRollersIfNeeded()
-        {
-            // Проверяем нужно ли искать левые ролики
-            bool needLeftRollers = leftTrackRollers == null || leftTrackRollers.Length == 0 || 
-                                   System.Array.Exists(leftTrackRollers, r => r == null);
-            
-            if (needLeftRollers)
-            {
-                leftTrackRollers = FindRollersByPrefix(leftRollerPrefix, 6);
-            }
-            
-            // Проверяем нужно ли искать правые ролики
-            bool needRightRollers = rightTrackRollers == null || rightTrackRollers.Length == 0 || 
-                                    System.Array.Exists(rightTrackRollers, r => r == null);
-            
-            if (needRightRollers)
-            {
-                rightTrackRollers = FindRollersByPrefix(rightRollerPrefix, 6);
-            }
-        }
-        
-        /// <summary>
-        /// Ищет ролики по префиксу имени
-        /// </summary>
-        private Transform[] FindRollersByPrefix(string prefix, int expectedCount)
-        {
-            Transform[] foundRollers = new Transform[expectedCount];
-            Transform[] allChildren = GetComponentsInChildren<Transform>();
-            
-            int index = 0;
-            foreach (Transform child in allChildren)
-            {
-                if (child == transform) continue; // Пропускаем сам танк
-                
-                // Ищем по префиксу и номеру (например: LeftRoller_1, LeftRoller_2, etc)
-                if (child.name.StartsWith(prefix))
-                {
-                    // Пытаемся извлечь номер из имени
-                    string numberPart = child.name.Replace(prefix, "").Replace("_", "").Replace("-", "");
-                    if (int.TryParse(numberPart, out int rollerNumber) && rollerNumber > 0 && rollerNumber <= expectedCount)
-                    {
-                        foundRollers[rollerNumber - 1] = child;
-                    }
-                    else if (index < expectedCount)
-                    {
-                        // Если номер не найден, просто добавляем по порядку
-                        foundRollers[index] = child;
-                        index++;
-                    }
-                }
-            }
-            
-            // Проверяем нашли ли все ролики
-            int foundCount = System.Array.FindAll(foundRollers, r => r != null).Length;
-            if (foundCount > 0)
-            {
-                Debug.Log($"TankMovement: Найдено {foundCount} роликов с префиксом '{prefix}'");
-            }
-            else
-            {
-                Debug.LogWarning($"TankMovement: Не найдено роликов с префиксом '{prefix}'. Назначьте их вручную в Inspector.");
-            }
-            
-            return foundRollers;
-        }
 
         private void ConfigureRigidbody()
         {
@@ -377,7 +222,6 @@ namespace TankGame.Tank.Components
             };
             
             ApplyPhysicMaterial();
-            Debug.Log("TankMovement: Создан физический материал по умолчанию (без трения)");
         }
 
         /// <summary>
@@ -416,12 +260,6 @@ namespace TankGame.Tank.Components
             Vector3 newVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
             rb.linearVelocity = newVelocity;
             
-            // Отладка - проверяем движение раз в секунду
-            if (Time.frameCount % 50 == 0 && (Mathf.Abs(vertical) > 0.01f || Mathf.Abs(horizontal) > 0.01f))
-            {
-                Debug.Log($"[TankMovement] ApplyMovement - V={vertical:F2}, H={horizontal:F2}, velocity={newVelocity}, rb.position={rb.position}");
-            }
-
             // Вращение танка
             currentYaw += horizontal * rotationSpeed * Time.fixedDeltaTime;
             
@@ -429,82 +267,6 @@ namespace TankGame.Tank.Components
             lastVerticalInput = vertical;
             lastHorizontalInput = horizontal;
             
-            // Обновляем подвеску роликов
-            if (enableRollerSuspension)
-            {
-                UpdateRollerSuspension();
-            }
-        }
-        
-        /// <summary>
-        /// Обновляет подвеску роликов - движение вверх-вниз имитируя неровности
-        /// Оптимизировано: обновление не каждый кадр
-        /// </summary>
-        private void UpdateRollerSuspension()
-        {
-            // Оптимизация: обновляем ролики не каждый кадр
-            rollerUpdateCounter++;
-            if (rollerUpdateCounter < rollerUpdateFrequency)
-                return;
-            rollerUpdateCounter = 0;
-            
-            float currentSpeed = currentVelocity.magnitude;
-            float rotationIntensity = Mathf.Abs(lastHorizontalInput);
-            
-            // Ролики двигаются если танк движется ИЛИ поворачивает на месте
-            if (currentSpeed < minSpeedForSuspension && rotationIntensity < 0.1f)
-                return;
-            
-            // Кэшируем время для всех роликов (оптимизация)
-            float currentTime = Time.time;
-            
-            // Обновляем левые ролики
-            if (leftTrackRollers != null && leftRollerInitialPositions != null)
-            {
-                for (int i = 0; i < leftTrackRollers.Length; i++)
-                {
-                    if (leftTrackRollers[i] != null)
-                    {
-                        // Используем Perlin noise для плавного случайного движения
-                        float noiseValue = Mathf.PerlinNoise(
-                            currentTime * rollerSpeed + leftRollerOffsets[i], 
-                            i * 0.5f
-                        );
-                        
-                        // Преобразуем из диапазона [0,1] в диапазон [min,max]
-                        float offset = Mathf.Lerp(rollerMinOffset, rollerMaxOffset, noiseValue);
-                        
-                        // Применяем смещение по оси Y (вверх-вниз)
-                        Vector3 newPosition = leftRollerInitialPositions[i];
-                        newPosition.y += offset;
-                        
-                        leftTrackRollers[i].localPosition = newPosition;
-                    }
-                }
-            }
-            
-            // Обновляем правые ролики
-            if (rightTrackRollers != null && rightRollerInitialPositions != null)
-            {
-                for (int i = 0; i < rightTrackRollers.Length; i++)
-                {
-                    if (rightTrackRollers[i] != null)
-                    {
-                        // Используем другое смещение для независимого движения
-                        float noiseValue = Mathf.PerlinNoise(
-                            currentTime * rollerSpeed + rightRollerOffsets[i] + 50f, // +50 для разницы
-                            i * 0.5f + 10f
-                        );
-                        
-                        float offset = Mathf.Lerp(rollerMinOffset, rollerMaxOffset, noiseValue);
-                        
-                        Vector3 newPosition = rightRollerInitialPositions[i];
-                        newPosition.y += offset;
-                        
-                        rightTrackRollers[i].localPosition = newPosition;
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -840,13 +602,6 @@ namespace TankGame.Tank.Components
         {
             // Детальная визуализация только когда объект выбран (оптимизация)
             
-            // Визуализируем ролики и их движение
-            if (enableRollerSuspension && Application.isPlaying)
-            {
-                DrawRollerSuspensionGizmos(leftTrackRollers, leftRollerInitialPositions, Color.cyan);
-                DrawRollerSuspensionGizmos(rightTrackRollers, rightRollerInitialPositions, Color.magenta);
-            }
-            
             // Проверяем и визуализируем точки опоры
             if (frontLeftPoint != null && frontRightPoint != null && rearLeftPoint != null && rearRightPoint != null)
             {
@@ -859,36 +614,6 @@ namespace TankGame.Tank.Components
                 if (Application.isPlaying)
                 {
                     DrawAdvancedSuspensionInfo();
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Рисует Gizmos для подвески роликов
-        /// </summary>
-        private void DrawRollerSuspensionGizmos(Transform[] rollers, Vector3[] initialPositions, Color color)
-        {
-            if (rollers == null || initialPositions == null) return;
-            
-            for (int i = 0; i < rollers.Length; i++)
-            {
-                if (rollers[i] != null)
-                {
-                    // Сфера на текущей позиции
-                    Gizmos.color = color;
-                    Gizmos.DrawWireSphere(rollers[i].position, 0.1f);
-                    
-                    // Линия от начальной до текущей позиции (показывает смещение)
-                    Vector3 initialWorldPos = rollers[i].parent != null 
-                        ? rollers[i].parent.TransformPoint(initialPositions[i]) 
-                        : initialPositions[i];
-                    
-                    Gizmos.color = Color.yellow;
-                    Gizmos.DrawLine(initialWorldPos, rollers[i].position);
-                    
-                    // Маленькая сфера на начальной позиции
-                    Gizmos.color = Color.gray;
-                    Gizmos.DrawWireSphere(initialWorldPos, 0.05f);
                 }
             }
         }

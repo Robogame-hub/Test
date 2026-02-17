@@ -1,6 +1,7 @@
 using UnityEngine;
 using TankGame.Utils;
 using BulletComponent = TankGame.Weapons.Bullet;
+using UnityEngine.Events;
 
 namespace TankGame.Tank.Components
 {
@@ -25,6 +26,12 @@ namespace TankGame.Tank.Components
         [SerializeField] private float bulletLifetime = 5f;
         [Tooltip("Начальный размер пула пуль (для оптимизации)")]
         [SerializeField] private int bulletPoolSize = 20;
+        [Tooltip("Размер магазина")]
+        [SerializeField] private int magazineSize = 10;
+        [Tooltip("Общий запас патронов (без магазина)")]
+        [SerializeField] private int reserveAmmo = 50;
+        [Tooltip("Длительность перезарядки (секунды)")]
+        [SerializeField] private float reloadDuration = 1.5f;
 
         [Header("Spread Settings")]
         [Tooltip("Минимальный разброс при максимальной стабильности (градусы)")]
@@ -52,13 +59,28 @@ namespace TankGame.Tank.Components
         private Transform bulletPoolParent;
         private float lastFireTime;
         private bool isFiring; // Защита от двойного выстрела в одном кадре
+        private bool isReloading;
+        private int currentAmmoInMagazine;
         private TankMovement tankMovement; // Для получения фактора движения
         private TankTurret tankTurret; // Для проверки выравнивания башни
+        private Coroutine reloadCoroutine;
+
+        [System.Serializable]
+        public class AmmoChangedEvent : UnityEvent<int, int, int> { }
+
+        [Header("Events")]
+        [Tooltip("Событие изменения боезапаса: currentMagazine, magazineSize, reserveAmmo")]
+        [SerializeField] private AmmoChangedEvent onAmmoChanged = new AmmoChangedEvent();
 
         public Transform FirePoint => firePoint;
-        public bool CanFire => Time.time - lastFireTime >= fireCooldown && !isFiring;
+        public bool CanFire => Time.time - lastFireTime >= fireCooldown && !isFiring && !isReloading && currentAmmoInMagazine > 0;
         public float LastFireTime => lastFireTime;
         public float FireCooldown => fireCooldown;
+        public int CurrentAmmoInMagazine => currentAmmoInMagazine;
+        public int MagazineSize => magazineSize;
+        public int ReserveAmmo => reserveAmmo;
+        public bool IsReloading => isReloading;
+        public AmmoChangedEvent OnAmmoChanged => onAmmoChanged;
 
         private void Awake()
         {
@@ -66,6 +88,8 @@ namespace TankGame.Tank.Components
             InitializeBulletPool();
             tankMovement = GetComponentInParent<TankMovement>();
             tankTurret = GetComponentInParent<TankTurret>();
+            currentAmmoInMagazine = Mathf.Max(0, magazineSize);
+            NotifyAmmoChanged();
         }
         
         // Визуализация линии выстрела теперь в TankTurret через LineRenderer
@@ -74,13 +98,34 @@ namespace TankGame.Tank.Components
         {
             if (firePoint == null)
             {
-                Transform turret = transform.Find("Turret");
+                Transform turret = FindChildRecursive(transform, "ZUBR_TURRET")
+                    ?? FindChildRecursive(transform, "Turret");
+
                 if (turret != null)
-                {
-                    Transform cannon = turret.Find("Cannon") ?? turret;
-                    firePoint = cannon.Find("FirePoint") ?? cannon;
-                }
+                    firePoint = FindChildRecursive(turret, "FirePoint");
+
+                if (firePoint == null)
+                    firePoint = FindChildRecursive(transform, "FirePoint");
+
+                if (firePoint == null && turret != null)
+                    firePoint = turret;
             }
+        }
+
+        private Transform FindChildRecursive(Transform parent, string name)
+        {
+            Transform direct = parent.Find(name);
+            if (direct != null)
+                return direct;
+
+            foreach (Transform child in parent)
+            {
+                Transform found = FindChildRecursive(child, name);
+                if (found != null)
+                    return found;
+            }
+
+            return null;
         }
 
         private void InitializeBulletPool()
@@ -102,8 +147,6 @@ namespace TankGame.Tank.Components
                 bulletPoolParent,
                 expandable: true
             );
-            
-            Debug.Log($"[TankWeapon] Bullet pool created: {bulletPoolParent.name} with {bulletPoolSize} bullets");
         }
 
         /// <summary>
@@ -111,20 +154,11 @@ namespace TankGame.Tank.Components
         /// </summary>
         public void Fire(float stability)
         {
-            Debug.Log($"[TankWeapon.Fire] Called! isFiring={isFiring}, CanFire={CanFire}, Frame={Time.frameCount}, Time={Time.time}");
-            
-            // Защита от двойного выстрела
             if (isFiring)
-            {
-                Debug.LogWarning($"[TankWeapon] Попытка двойного выстрела в одном кадре! Frame={Time.frameCount}");
                 return;
-            }
             
             if (!CanFire)
-            {
-                Debug.LogWarning($"[TankWeapon] CanFire=false! Cooldown remaining: {fireCooldown - (Time.time - lastFireTime)}");
                 return;
-            }
             
             if (firePoint == null)
             {
@@ -139,30 +173,16 @@ namespace TankGame.Tank.Components
             }
 
             isFiring = true;
-            Debug.Log($"[TankWeapon] FIRING! Setting isFiring=true, Frame={Time.frameCount}");
 
-            // ═══════════════════════════════════════════════════════════════
-            // СНАЙПЕРСКИЙ ВЫСТРЕЛ: FirePoint → Прицел → Цель
-            // ═══════════════════════════════════════════════════════════════
-            
-            // ШАГ 1: Расчет разброса
-            // ─────────────────────────────────────────────────────────────
-            // Базовый разброс от стабильности пушки (движение мыши)
             float spread = Mathf.Lerp(maxSpreadAngle, minSpreadAngle, stability);
             
-            // Добавляем разброс от движения танка
             if (tankMovement != null)
             {
                 float movementFactor = tankMovement.GetMovementFactor();
                 spread += movementFactor * movementSpreadMultiplier;
             }
             
-            // Защита от отрицательного разброса
             spread = Mathf.Max(0f, spread);
-            
-            // ШАГ 2: Направление стрельбы - от FIRE_POINT горизонтально к точке под курсором мыши
-            // ─────────────────────────────────────────────────────────────
-            // В топдаун шутере стреляем ГОРИЗОНТАЛЬНО (по XZ плоскости), а не вниз к земле
             Vector3 targetPoint = GetAimPointFromMouse();
             
             // Вычисляем направление от FirePoint к точке прицела
@@ -172,26 +192,17 @@ namespace TankGame.Tank.Components
             // Убираем вертикальную компоненту (Y), чтобы пуля летела горизонтально
             directionToTarget.y = 0f;
             
-            // Проверка на нулевое направление
             if (directionToTarget.magnitude < 0.001f)
             {
-                Debug.LogWarning("[TankWeapon] Invalid direction! Using firePoint.forward");
                 directionToTarget = firePoint.forward;
-                directionToTarget.y = 0f; // Также проецируем на горизонтальную плоскость
+                directionToTarget.y = 0f;
             }
             
             Vector3 direction = directionToTarget.normalized;
-            
-            Debug.Log($"[TankWeapon] Top-down Shot: FirePoint={firePoint.position} → Mouse Target={targetPoint}, Direction={direction}, Spread={spread:F2}°");
-            
-            // ШАГ 3: Применяем разброс (в стабильном состоянии разброс = 0.5°)
-            // ─────────────────────────────────────────────────────────────
+
             if (spread > 0.001f)
             {
-                // Разброс применяется только по горизонтали (Y ось вращения)
                 float randomAngleY = Random.Range(-spread, spread);
-                
-                // Применяем разброс вокруг горизонтального направления
                 Quaternion spreadRotation = Quaternion.Euler(0f, randomAngleY, 0f);
                 Quaternion aimRotation = Quaternion.LookRotation(direction);
                 direction = aimRotation * spreadRotation * Vector3.forward;
@@ -199,10 +210,6 @@ namespace TankGame.Tank.Components
             
             direction = direction.normalized;
             
-            // РЕЗУЛЬТАТ: Пуля летит ОТ FirePoint В направлении прицела (± разброс)
-            // В стабильном состоянии = снайперский выстрел точно в цель! 🎯
-
-            // Получаем пулю из пула
             BulletComponent bullet = bulletPool.Get();
             if (bullet == null)
             {
@@ -211,7 +218,6 @@ namespace TankGame.Tank.Components
                 return;
             }
 
-            // ИСПРАВЛЕНО: Убираем parent (пуля должна быть независимой в мире)
             bullet.transform.SetParent(null);
             
             // Настраиваем позицию и ротацию
@@ -231,26 +237,20 @@ namespace TankGame.Tank.Components
                 bulletRb.angularVelocity = Vector3.zero; // Сброс вращения
             }
             
-            Debug.Log($"[TankWeapon] Bullet fired: {bullet.name} at {firePoint.position} direction {direction}");
-
-            // VFX
             PlayMuzzleVFX();
-            
-            // Debug Ray
             DrawDebugRay(firePoint.position, direction);
 
             lastFireTime = Time.time;
+            currentAmmoInMagazine = Mathf.Max(0, currentAmmoInMagazine - 1);
+            NotifyAmmoChanged();
             
-            // Сбрасываем флаг в конце кадра
             StartCoroutine(ResetFiringFlag());
         }
         
         private System.Collections.IEnumerator ResetFiringFlag()
         {
-            Debug.Log($"[TankWeapon] Waiting to reset isFiring flag... Frame={Time.frameCount}");
             yield return new WaitForEndOfFrame();
             isFiring = false;
-            Debug.Log($"[TankWeapon] isFiring flag RESET to false. Frame={Time.frameCount}");
         }
         
         /// <summary>
@@ -262,8 +262,6 @@ namespace TankGame.Tank.Components
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
             {
-                // Fallback: используем направление вперед от FirePoint
-                Debug.LogWarning("[TankWeapon] Camera.main not found! Using firePoint.forward");
                 return firePoint.position + firePoint.forward * 100f;
             }
             
@@ -275,26 +273,17 @@ namespace TankGame.Tank.Components
             // Создаем плоскость на уровне земли
             Plane groundPlane = new Plane(Vector3.up, groundHeight);
             
-            // Raycast от камеры через курсор мыши
             Ray mouseRay = mainCamera.ScreenPointToRay(Input.mousePosition);
             
-            // Пересекаем луч с плоскостью земли
             if (groundPlane.Raycast(mouseRay, out float distance))
             {
-                // Точка пересечения с плоскостью земли - это точка прицеливания
-                Vector3 aimPoint = mouseRay.GetPoint(distance);
-                return aimPoint;
+                return mouseRay.GetPoint(distance);
             }
-            else
-            {
-                // Если луч не пересекает плоскость (не должно происходить в топдаун камере),
-                // используем проекцию на максимальную дистанцию
-                float maxDistance = 500f;
-                Vector3 farPoint = mouseRay.origin + mouseRay.direction * maxDistance;
-                // Проецируем на плоскость земли
-                farPoint.y = groundHeight;
-                return farPoint;
-            }
+
+            float maxDistance = 500f;
+            Vector3 farPoint = mouseRay.origin + mouseRay.direction * maxDistance;
+            farPoint.y = groundHeight;
+            return farPoint;
         }
         
         
@@ -340,10 +329,35 @@ namespace TankGame.Tank.Components
             float spreadDeviation = Vector3.Angle(targetPoint - origin, direction);
             Debug.DrawLine(bulletEndPoint, targetPoint, Color.magenta, debugRayDuration);
             
-            // Лог для отладки
-            float movementFactor = tankMovement != null ? tankMovement.GetMovementFactor() : 0f;
-            float distance = Vector3.Distance(origin, targetPoint);
-            Debug.Log($"[TankWeapon] 🎯 Top-down Shot: Distance={distance:F1}m, Spread Deviation={spreadDeviation:F2}°, MovementFactor={movementFactor:F2}");
+        }
+
+        public bool TryReload()
+        {
+            if (isReloading)
+                return false;
+            if (currentAmmoInMagazine >= magazineSize)
+                return false;
+            if (reserveAmmo <= 0)
+                return false;
+
+            reloadCoroutine = StartCoroutine(ReloadRoutine());
+            return true;
+        }
+
+        private System.Collections.IEnumerator ReloadRoutine()
+        {
+            isReloading = true;
+            yield return new WaitForSeconds(reloadDuration);
+
+            int neededAmmo = magazineSize - currentAmmoInMagazine;
+            int ammoToLoad = Mathf.Min(neededAmmo, reserveAmmo);
+
+            currentAmmoInMagazine += ammoToLoad;
+            reserveAmmo -= ammoToLoad;
+
+            isReloading = false;
+            reloadCoroutine = null;
+            NotifyAmmoChanged();
         }
 
         private void PlayMuzzleVFX()
@@ -355,10 +369,7 @@ namespace TankGame.Tank.Components
             Transform effectPoint = muzzleVFXPoint != null ? muzzleVFXPoint : firePoint;
             
             if (effectPoint == null)
-            {
-                Debug.LogWarning("[TankWeapon] No point for muzzle VFX! Assign muzzleVFXPoint or firePoint.");
                 return;
-            }
 
             GameObject vfx = Instantiate(muzzleVFX, effectPoint.position, effectPoint.rotation, effectPoint);
             ParticleSystem ps = vfx.GetComponent<ParticleSystem>();
@@ -373,7 +384,6 @@ namespace TankGame.Tank.Components
                 Destroy(vfx, 2f); // Fallback
             }
             
-            Debug.Log($"[TankWeapon] Muzzle VFX played at: {effectPoint.name} ({effectPoint.position})");
         }
 
         /// <summary>
@@ -390,7 +400,6 @@ namespace TankGame.Tank.Components
                 
                 bulletPool.Return(bullet);
                 
-                Debug.Log($"[TankWeapon] Bullet returned to pool: {bullet.name}");
             }
         }
 
@@ -404,8 +413,14 @@ namespace TankGame.Tank.Components
             {
                 Destroy(bulletPoolParent.gameObject);
             }
-            
-            Debug.Log("[TankWeapon] Destroyed and cleaned up bullet pool");
+
+            if (reloadCoroutine != null)
+                StopCoroutine(reloadCoroutine);
+        }
+
+        private void NotifyAmmoChanged()
+        {
+            onAmmoChanged?.Invoke(currentAmmoInMagazine, magazineSize, reserveAmmo);
         }
         
         /// <summary>

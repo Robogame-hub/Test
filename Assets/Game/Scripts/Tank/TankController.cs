@@ -43,13 +43,7 @@ namespace TankGame.Tank
         /// </summary>
         public void SetIsLocalPlayer(bool isLocal)
         {
-            bool wasLocal = isLocalPlayer;
             isLocalPlayer = isLocal;
-            
-            if (wasLocal != isLocal)
-            {
-                Debug.Log($"[TankController] SetIsLocalPlayer changed: {wasLocal} -> {isLocal} for {gameObject.name}");
-            }
         }
 
         private void Awake()
@@ -123,6 +117,12 @@ namespace TankGame.Tank
             {
                 if (turret.IsAiming)
                     turret.StopAiming();
+            }
+
+            // Перезарядка
+            if (command.IsReloadRequested)
+            {
+                weapon.TryReload();
             }
 
             // Стрельба

@@ -111,7 +111,7 @@ namespace TankGame.Examples
                 }
             }
 
-            return new TankInputCommand(vertical, horizontal, mouseDelta, aiming, firing);
+            return new TankInputCommand(vertical, horizontal, mouseDelta, aiming, firing, false);
         }
 
         private Vector2 CalculateAimDelta()
