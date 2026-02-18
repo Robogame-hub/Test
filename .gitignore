@@ -1,0 +1,40 @@
+# =========================
+# Unity generated folders
+# =========================
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Addressables / generated artifacts
+Assets/AddressableAssetsData/*/*.bin*
+
+# Visual Studio / Rider / IDE
+.vs/
+.vscode/
+.idea/
+*.sln
+*.csproj
+*.unityproj
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Cursor / agent artifacts
+.cursor/
+agent-transcripts/
+
+# Keep Unity meta files tracked
+!*.meta
+
