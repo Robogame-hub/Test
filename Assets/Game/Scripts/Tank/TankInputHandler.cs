@@ -65,8 +65,9 @@ namespace TankGame.Tank
 
             bool isFiring = isAiming && Input.GetMouseButtonDown(0);
             bool isReloadRequested = Input.GetKeyDown(KeyCode.R);
+            bool isBoosting = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
 
-            lastCommand = new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring, isReloadRequested);
+            lastCommand = new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring, isReloadRequested, isBoosting);
             return lastCommand;
         }
 

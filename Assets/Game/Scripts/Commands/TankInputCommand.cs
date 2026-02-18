@@ -15,8 +15,9 @@ namespace TankGame.Commands
         public bool IsAiming;
         public bool IsFiring;
         public bool IsReloadRequested;
+        public bool IsBoosting;
 
-        public TankInputCommand(float vertical, float horizontal, Vector2 mouseDelta, bool aiming, bool firing, bool reloadRequested = false)
+        public TankInputCommand(float vertical, float horizontal, Vector2 mouseDelta, bool aiming, bool firing, bool reloadRequested = false, bool isBoosting = false)
         {
             Timestamp = Time.time;
             VerticalInput = vertical;
@@ -25,6 +26,7 @@ namespace TankGame.Commands
             IsAiming = aiming;
             IsFiring = firing;
             IsReloadRequested = reloadRequested;
+            IsBoosting = isBoosting;
         }
     }
 }

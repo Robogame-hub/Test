@@ -18,6 +18,22 @@ namespace TankGame.Tank.Components
         [SerializeField] private float acceleration = 10f;
         [Tooltip("Скорость торможения танка")]
         [SerializeField] private float deceleration = 15f;
+        [Tooltip("Множитель скорости заднего хода (меньше 1 = назад медленнее)")]
+        [SerializeField] private float reverseSpeedMultiplier = 0.65f;
+
+        [Header("Boost / Drift Settings")]
+        [Tooltip("Множитель скорости на форсаже")]
+        [SerializeField] private float boostSpeedMultiplier = 1.6f;
+        [Tooltip("Множитель скорости поворота на форсаже")]
+        [SerializeField] private float boostRotationMultiplier = 1.35f;
+        [Tooltip("Расход стамины в секунду на форсаже")]
+        [SerializeField] private float boostStaminaDrainPerSecond = 20f;
+        [Tooltip("Максимум стамины")]
+        [SerializeField] private float maxStamina = 100f;
+        [Tooltip("Linear Drag на форсаже (меньше = легче снос в дрифт)")]
+        [SerializeField] private float boostLinearDrag = 0.08f;
+        [Tooltip("Angular Drag на форсаже (меньше = легче прокрутка в дрифте)")]
+        [SerializeField] private float boostAngularDrag = 0.7f;
         
         [Header("Physics Settings (Anti-Jitter)")]
         [Tooltip("Масса танка (больше = стабильнее)")]
@@ -93,11 +109,17 @@ namespace TankGame.Tank.Components
         
         private int groundCheckCounter; // Счетчик для пропуска проверок земли
         private Quaternion cachedGroundRotation; // Кэшированное вращение
+        private float currentStamina;
+        private bool isBoosting;
 
         public float MoveSpeed => moveSpeed;
         public float RotationSpeed => rotationSpeed;
         public float CurrentYaw => currentYaw;
         public Vector3 CurrentVelocity => currentVelocity;
+        public float CurrentStamina => currentStamina;
+        public float MaxStamina => maxStamina;
+        public float StaminaNormalized => maxStamina > 0f ? Mathf.Clamp01(currentStamina / maxStamina) : 0f;
+        public bool IsBoosting => isBoosting;
 
         private void Awake()
         {
@@ -108,6 +130,7 @@ namespace TankGame.Tank.Components
         private void Start()
         {
             currentYaw = transform.eulerAngles.y;
+            currentStamina = maxStamina;
             
             tankEngine = GetComponent<TankEngine>();
             
@@ -228,11 +251,15 @@ namespace TankGame.Tank.Components
         /// Применяет ввод для движения танка с плавным ускорением
         /// ВАЖНО: Используется в FixedUpdate для физики
         /// </summary>
-        public void ApplyMovement(float vertical, float horizontal)
+        public void ApplyMovement(float vertical, float horizontal, bool boostRequested = false)
         {
             // ПРОВЕРКА: Двигатель должен быть запущен!
             if (tankEngine != null && !tankEngine.IsEngineRunning)
             {
+                isBoosting = false;
+                rb.linearDamping = linearDrag;
+                rb.angularDamping = angularDrag;
+
                 // Двигатель выключен - не применяем ввод, но замедляемся
                 targetVelocity = Vector3.zero;
                 currentVelocity = Vector3.Lerp(
@@ -243,10 +270,36 @@ namespace TankGame.Tank.Components
                 rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
                 return;  // НЕ двигаемся!
             }
+
+            bool hasControlInput = Mathf.Abs(vertical) > 0.01f || Mathf.Abs(horizontal) > 0.01f;
+            bool canBoost = boostRequested && hasControlInput && currentStamina > 0f;
+            isBoosting = canBoost;
+
+            if (isBoosting)
+            {
+                currentStamina = Mathf.Max(0f, currentStamina - boostStaminaDrainPerSecond * Time.fixedDeltaTime);
+                if (currentStamina <= 0f)
+                {
+                    isBoosting = false;
+                }
+            }
+
+            rb.linearDamping = isBoosting ? boostLinearDrag : linearDrag;
+            rb.angularDamping = isBoosting ? boostAngularDrag : angularDrag;
+
+            float effectiveMoveSpeed = isBoosting ? moveSpeed * boostSpeedMultiplier : moveSpeed;
+            float effectiveRotationSpeed = isBoosting ? rotationSpeed * boostRotationMultiplier : rotationSpeed;
+
+            // В этой конфигурации vertical > 0 означает задний ход (из-за transform.forward * -vertical).
+            bool isReverseInput = vertical > 0.01f;
+            if (isReverseInput)
+            {
+                effectiveMoveSpeed *= reverseSpeedMultiplier;
+            }
             
             // Движение вперед/назад с плавным ускорением
             Vector3 moveDirection = transform.forward * -vertical;
-            targetVelocity = moveDirection * moveSpeed;
+            targetVelocity = moveDirection * effectiveMoveSpeed;
             
             // Плавное изменение скорости (acceleration/deceleration)
             float accelRate = vertical != 0 ? acceleration : deceleration;
@@ -261,7 +314,7 @@ namespace TankGame.Tank.Components
             rb.linearVelocity = newVelocity;
             
             // Вращение танка
-            currentYaw += horizontal * rotationSpeed * Time.fixedDeltaTime;
+            currentYaw += horizontal * effectiveRotationSpeed * Time.fixedDeltaTime;
             
             // Сохраняем ввод для расчета наклонов
             lastVerticalInput = vertical;

@@ -257,15 +257,8 @@ namespace TankGame.UI
             // Получаем стабильность от турели (0-1)
             float stability = turret != null ? turret.CurrentStability : 1f;
             
-            // Базовый разброс от стабильности пушки
+            // Базовый разброс от стабильности пушки (включает движение, поворот башни, дистанцию)
             float targetSpread = Mathf.Lerp(maxSpread, minSpread, stability);
-            
-            // ИСПРАВЛЕНО: Добавляем разброс от движения танка
-            if (tankMovement != null)
-            {
-                float movementFactor = tankMovement.GetMovementFactor();
-                targetSpread += movementFactor * movementSpreadMultiplier;
-            }
             
             // Плавная анимация
             currentSpread = Mathf.Lerp(currentSpread, targetSpread, Time.deltaTime * spreadAnimationSpeed);

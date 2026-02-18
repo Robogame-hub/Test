@@ -24,12 +24,16 @@ namespace TankGame.Tank
         [SerializeField] private TankWeapon weapon;
         [Tooltip("Компонент здоровья танка")]
         [SerializeField] private TankHealth health;
+        [Tooltip("Компонент анимации гусениц")]
+        [SerializeField] private TrackAnimationController trackAnimation;
         [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
 
         [Header("Player Settings")]
         [Tooltip("Является ли этот танк локальным игроком (управляется на этом клиенте)")]
         [SerializeField] private bool isLocalPlayer = true;
+        
+        private TankInputCommand cachedInput;
 
         // Публичные свойства для доступа к компонентам
         public TankMovement Movement => movement;
@@ -62,6 +66,8 @@ namespace TankGame.Tank
                 weapon = GetComponent<TankWeapon>();
             if (health == null)
                 health = GetComponent<TankHealth>();
+            if (trackAnimation == null)
+                trackAnimation = GetComponent<TrackAnimationController>() ?? gameObject.AddComponent<TrackAnimationController>();
             if (inputHandler == null)
                 inputHandler = GetComponent<TankInputHandler>() ?? gameObject.AddComponent<TankInputHandler>();
         }
@@ -82,9 +88,9 @@ namespace TankGame.Tank
             if (!isLocalPlayer)
                 return;
             
-            // Физика - применяем движение (в FixedUpdate для стабильности!)
-            TankInputCommand input = inputHandler.GetCurrentInput();
-            ProcessPhysicalMovement(input);
+            // Физика - используем ввод, собранный в Update (без повторного чтения Input)
+            ProcessPhysicalMovement(cachedInput);
+            trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
             
             // Физика - выравнивание по земле
             movement.AlignToGround();
@@ -98,8 +104,8 @@ namespace TankGame.Tank
             if (inputHandler == null)
                 return;
             
-            TankInputCommand input = inputHandler.GetCurrentInput();
-            ProcessCommand(input);
+            cachedInput = inputHandler.GetCurrentInput();
+            ProcessCommand(cachedInput);
         }
 
         /// <summary>
@@ -147,7 +153,7 @@ namespace TankGame.Tank
         private void ProcessPhysicalMovement(TankInputCommand command)
         {
             // Движение танка (ФИЗИКА - только в FixedUpdate!)
-            movement.ApplyMovement(command.VerticalInput, command.HorizontalInput);
+            movement.ApplyMovement(command.VerticalInput, command.HorizontalInput, command.IsBoosting);
         }
 
 
