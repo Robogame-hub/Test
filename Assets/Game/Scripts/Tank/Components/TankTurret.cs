@@ -1,4 +1,5 @@
 using UnityEngine;
+using TankGame.Tank;
 
 namespace TankGame.Tank.Components
 {
@@ -102,10 +103,13 @@ namespace TankGame.Tank.Components
         private float          currentTurretRotationSpeed;
         private Vector3        cameraOffset;
         private bool           isFirePointAligned;
+        private bool           hasExternalAimPoint;
+        private Vector3        externalAimPoint;
 
         private Transform      tankTransform;
         private TankWeapon     weapon;
         private TankMovement   tankMovement;
+        private TankController tankController;
         private LineRenderer   fireLineRenderer;
 
         // ─── Public API ───────────────────────────────────────────────────────
@@ -145,6 +149,7 @@ namespace TankGame.Tank.Components
         private void Awake()
         {
             TankController tc = GetComponent<TankController>() ?? GetComponentInParent<TankController>();
+            tankController = tc;
             tankTransform = tc != null ? tc.transform : transform;
 
             if (tc != null)
@@ -202,23 +207,30 @@ namespace TankGame.Tank.Components
         {
             if (weapon == null || weapon.FirePoint == null) return;
 
-            GameObject lineObj = new GameObject("FireLineRenderer");
-            lineObj.transform.SetParent(weapon.FirePoint);
-            lineObj.transform.localPosition = Vector3.zero;
+            if (fireLineRenderer == null)
+            {
+                GameObject lineObj = new GameObject("FireLineRenderer");
+                fireLineRenderer = lineObj.AddComponent<LineRenderer>();
+                fireLineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+                fireLineRenderer.startWidth = fireLineStartWidth;
+                fireLineRenderer.endWidth = fireLineEndWidth;
+                fireLineRenderer.positionCount = 2;
+                fireLineRenderer.useWorldSpace = true;
+                fireLineRenderer.enabled = false;
+            }
 
-            fireLineRenderer = lineObj.AddComponent<LineRenderer>();
-            fireLineRenderer.material      = new Material(Shader.Find("Sprites/Default"));
-            fireLineRenderer.startWidth    = fireLineStartWidth;
-            fireLineRenderer.endWidth      = fireLineEndWidth;
-            fireLineRenderer.positionCount = 2;
-            fireLineRenderer.useWorldSpace = true;
-            fireLineRenderer.enabled       = false;
+            fireLineRenderer.transform.SetParent(weapon.FirePoint);
+            fireLineRenderer.transform.localPosition = Vector3.zero;
+            fireLineRenderer.transform.localRotation = Quaternion.identity;
         }
 
         // ─── Update ───────────────────────────────────────────────────────────
         private void LateUpdate()
         {
-            UpdateCamera();
+            if (tankController == null || tankController.IsLocalPlayer)
+            {
+                UpdateCamera();
+            }
 
             if (isAiming)
             {
@@ -410,8 +422,33 @@ namespace TankGame.Tank.Components
             if (crosshair != null) crosshair.SetActive(false);
         }
 
+        public void SetExternalAimPoint(Vector3 worldPoint)
+        {
+            hasExternalAimPoint = true;
+            externalAimPoint = worldPoint;
+        }
+
+        public void ClearExternalAimPoint()
+        {
+            hasExternalAimPoint = false;
+        }
+
+        public void SetWeapon(TankWeapon newWeapon)
+        {
+            weapon = newWeapon;
+            CreateFireLineRenderer();
+        }
+
+        public void SetWeaponMode(WeaponType mode)
+        {
+            // Оставлено для совместимости с TankController.
+        }
+
         public Vector3 GetAimPointFromMouse()
         {
+            if (hasExternalAimPoint)
+                return externalAimPoint;
+
             Camera cam = turretCamera != null ? turretCamera : Camera.main;
             if (cam == null) return transform.position + transform.forward * 100f;
 

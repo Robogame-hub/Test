@@ -46,6 +46,12 @@ namespace TankGame.Tank.Components
         [SerializeField] private GameObject muzzleVFX;
         [Tooltip("Эффект попадания пули")]
         [SerializeField] private GameObject impactVFX;
+
+        [Header("Animation")]
+        [Tooltip("Animator пушки/ствола для анимации выстрела")]
+        [SerializeField] private Animator weaponAnimator;
+        [Tooltip("Название Trigger-параметра в Animator для выстрела")]
+        [SerializeField] private string fireAnimationTrigger = "Fire";
         
         [Header("Debug")]
         [Tooltip("Показывать debug ray направления выстрела")]
@@ -64,6 +70,9 @@ namespace TankGame.Tank.Components
         private TankMovement tankMovement; // Для получения фактора движения
         private TankTurret tankTurret; // Для проверки выравнивания башни
         private Coroutine reloadCoroutine;
+        private int fireAnimationTriggerHash;
+        private bool hasExternalAimPoint;
+        private Vector3 externalAimPoint;
 
         [System.Serializable]
         public class AmmoChangedEvent : UnityEvent<int, int, int> { }
@@ -85,6 +94,7 @@ namespace TankGame.Tank.Components
         private void Awake()
         {
             InitializeFirePoint();
+            InitializeWeaponAnimator();
             InitializeBulletPool();
             tankMovement = GetComponentInParent<TankMovement>();
             tankTurret = GetComponentInParent<TankTurret>();
@@ -147,6 +157,20 @@ namespace TankGame.Tank.Components
                 bulletPoolParent,
                 expandable: true
             );
+        }
+
+        private void InitializeWeaponAnimator()
+        {
+            if (weaponAnimator == null)
+            {
+                weaponAnimator = GetComponent<Animator>()
+                    ?? GetComponentInParent<Animator>()
+                    ?? GetComponentInChildren<Animator>();
+            }
+
+            fireAnimationTriggerHash = string.IsNullOrWhiteSpace(fireAnimationTrigger)
+                ? 0
+                : Animator.StringToHash(fireAnimationTrigger);
         }
 
         /// <summary>
@@ -238,6 +262,7 @@ namespace TankGame.Tank.Components
             }
             
             PlayMuzzleVFX();
+            PlayFireAnimation();
             DrawDebugRay(firePoint.position, direction);
 
             lastFireTime = Time.time;
@@ -259,6 +284,9 @@ namespace TankGame.Tank.Components
         /// </summary>
         private Vector3 GetAimPointFromMouse()
         {
+            if (hasExternalAimPoint)
+                return externalAimPoint;
+
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
             {
@@ -384,6 +412,27 @@ namespace TankGame.Tank.Components
                 Destroy(vfx, 2f); // Fallback
             }
             
+        }
+
+        private void PlayFireAnimation()
+        {
+            if (weaponAnimator == null || fireAnimationTriggerHash == 0)
+                return;
+
+            // Reset перед SetTrigger помогает корректно перезапускать анимацию при частой стрельбе.
+            weaponAnimator.ResetTrigger(fireAnimationTriggerHash);
+            weaponAnimator.SetTrigger(fireAnimationTriggerHash);
+        }
+
+        public void SetExternalAimPoint(Vector3 worldPoint)
+        {
+            hasExternalAimPoint = true;
+            externalAimPoint = worldPoint;
+        }
+
+        public void ClearExternalAimPoint()
+        {
+            hasExternalAimPoint = false;
         }
 
         /// <summary>

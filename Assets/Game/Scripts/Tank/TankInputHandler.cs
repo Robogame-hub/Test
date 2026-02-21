@@ -63,11 +63,31 @@ namespace TankGame.Tank
                 );
             }
 
-            bool isFiring = isAiming && Input.GetMouseButtonDown(0);
+            bool isFiringPressed = isAiming && Input.GetMouseButtonDown(0);
+            bool isFiringHeld = isAiming && Input.GetMouseButton(0);
+            bool isFiringReleased = isAiming && Input.GetMouseButtonUp(0);
+            bool isFiring = isFiringPressed;
             bool isReloadRequested = Input.GetKeyDown(KeyCode.R);
             bool isBoosting = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            int weaponSlot = 0;
+            if (Input.GetKeyDown(KeyCode.Alpha1))
+                weaponSlot = 1;
+            else if (Input.GetKeyDown(KeyCode.Alpha2))
+                weaponSlot = 2;
 
-            lastCommand = new TankInputCommand(vertical, horizontal, mouseDelta, isAiming, isFiring, isReloadRequested, isBoosting);
+            lastCommand = new TankInputCommand(
+                vertical,
+                horizontal,
+                mouseDelta,
+                isAiming,
+                isFiring,
+                isReloadRequested,
+                isBoosting,
+                weaponSlot,
+                isFiringPressed,
+                isFiringHeld,
+                isFiringReleased
+            );
             return lastCommand;
         }
 
