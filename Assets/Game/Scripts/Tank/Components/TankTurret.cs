@@ -24,6 +24,10 @@ namespace TankGame.Tank.Components
         [Tooltip("Мёртвая зона: башня останавливается если угол до цели меньше этого значения (градусы).\n⚠ Держи значение < 1°. При большом значении башня не доворачивает до прицела!")]
         [SerializeField][Range(0f, 1f)] private float turretAimDeadZone = 0.1f;
 
+        [Header("Orientation Calibration")]
+        [Tooltip("Смещение ориентации башни по оси Y (в градусах). Используйте для моделей, у которых forward смещен (например на 90°).")]
+        [SerializeField][Range(-180f, 180f)] private float turretAimYawOffset = 0f;
+
         // ─── Aiming ───────────────────────────────────────────────────────────
         [Header("Aiming")]
         [Tooltip("UI-объект прицела")]
@@ -254,6 +258,8 @@ namespace TankGame.Tank.Components
         {
             if (turret == null) return;
 
+            // Источник истины для направления пушки - FirePoint.
+            // Если FirePoint отсутствует, используем turret как fallback.
             Transform aimForwardTransform = (weapon != null && weapon.FirePoint != null) ? weapon.FirePoint : turret;
             Vector3 aimPivot = aimForwardTransform.position;
             Vector3 rotationAxis = turret.parent != null ? turret.parent.up : Vector3.up;
@@ -266,6 +272,14 @@ namespace TankGame.Tank.Components
             Vector3 currentForward = Vector3.ProjectOnPlane(aimForwardTransform.forward, rotationAxis);
             if (currentForward.sqrMagnitude < 0.001f) return;
             currentForward.Normalize();
+
+            // Калибровка "вперед" для моделей с неверной импортированной осью башни.
+            if (Mathf.Abs(turretAimYawOffset) > 0.001f)
+            {
+                currentForward = Quaternion.AngleAxis(turretAimYawOffset, rotationAxis) * currentForward;
+                currentForward = Vector3.ProjectOnPlane(currentForward, rotationAxis).normalized;
+                if (currentForward.sqrMagnitude < 0.001f) return;
+            }
 
             float angleDiff = Vector3.SignedAngle(currentForward, dirToAim, rotationAxis);
 
@@ -508,13 +522,26 @@ namespace TankGame.Tank.Components
         {
             if (turret == null) return;
 
-            Vector3 origin = turret.position + Vector3.up * 0.3f;
+            Transform aimForwardTransform = (weapon != null && weapon.FirePoint != null) ? weapon.FirePoint : turret;
+            Vector3 origin = aimForwardTransform.position + Vector3.up * 0.3f;
+            Vector3 rotationAxis = turret.parent != null ? turret.parent.up : Vector3.up;
 
-            // GREEN — реальный forward меша (XZ-проекция)
-            Vector3 fwdH = turret.forward;
-            fwdH.y = 0f;
-            if (fwdH.sqrMagnitude < 0.001f) fwdH = Vector3.forward;
-            fwdH.Normalize();
+            // GRAY — raw forward меша (до калибровки).
+            Vector3 rawFwd = Vector3.ProjectOnPlane(aimForwardTransform.forward, rotationAxis);
+            if (rawFwd.sqrMagnitude < 0.001f) rawFwd = Vector3.forward;
+            rawFwd.Normalize();
+
+            Gizmos.color = Color.gray;
+            Gizmos.DrawLine(origin, origin + rawFwd * 3.2f);
+
+            // GREEN — откалиброванный forward (используется в расчете доворота).
+            Vector3 fwdH = rawFwd;
+            if (Mathf.Abs(turretAimYawOffset) > 0.001f)
+            {
+                fwdH = Quaternion.AngleAxis(turretAimYawOffset, rotationAxis) * rawFwd;
+                fwdH = Vector3.ProjectOnPlane(fwdH, rotationAxis).normalized;
+            }
+            if (fwdH.sqrMagnitude < 0.001f) fwdH = rawFwd;
 
             Gizmos.color = Color.green;
             Gizmos.DrawLine(origin, origin + fwdH * 4f);
@@ -545,8 +572,8 @@ namespace TankGame.Tank.Components
             Gizmos.DrawLine(origin + fwdH * 2f, origin + targetDir * 2f);
 
             UnityEditor.Handles.Label(origin + Vector3.up * 0.6f,
-                $"GREEN=forward  CYAN=aim  YELLOW=target\n" +
-                $"Diff: {diff:F1}°");
+                $"GRAY=raw forward  GREEN=calibrated forward  CYAN=aim  YELLOW=target\n" +
+                $"YawOffset: {turretAimYawOffset:F1}°  Diff: {diff:F1}°");
         }
 #endif
     }

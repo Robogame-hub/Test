@@ -285,6 +285,6 @@ MonoBehaviour:
   fadeTime: 0.2
   startColor: {r: 0.5943396, g: 0.18834145, b: 0.008410451, a: 1}
   endColor: {r: 1, g: 0.43237165, b: 0, a: 0.5}
-  useAdvancedShader: 0
+  useAdvancedShader: 1
   customTracerMaterial: {fileID: 2100000, guid: 75100224ce441f74991c4beda86e7615,
     type: 2}

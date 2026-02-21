@@ -1,6 +1,5 @@
 using UnityEngine;
 using TankGame.Commands;
-using TankGame.Tank.Animation;
 using TankGame.Tank.Components;
 using UnityEngine.Events;
 using System.Collections;
@@ -33,8 +32,6 @@ namespace TankGame.Tank
         [SerializeField] private TankHealth health;
         [Tooltip("Компонент анимации гусениц")]
         [SerializeField] private TrackAnimationController trackAnimation;
-        [Tooltip("Единая точка управления анимациями танка")]
-        [SerializeField] private TankAnimationOrchestrator animationOrchestrator;
         [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
 
@@ -106,8 +103,6 @@ namespace TankGame.Tank
                 health = GetComponent<TankHealth>();
             if (trackAnimation == null)
                 trackAnimation = GetComponent<TrackAnimationController>() ?? gameObject.AddComponent<TrackAnimationController>();
-            if (animationOrchestrator == null)
-                animationOrchestrator = GetComponent<TankAnimationOrchestrator>() ?? gameObject.AddComponent<TankAnimationOrchestrator>();
             if (inputHandler == null)
                 inputHandler = GetComponent<TankInputHandler>() ?? gameObject.AddComponent<TankInputHandler>();
 
@@ -132,15 +127,7 @@ namespace TankGame.Tank
             
             // Физика - используем ввод, собранный в Update (без повторного чтения Input)
             ProcessPhysicalMovement(cachedInput);
-            if (animationOrchestrator != null)
-            {
-                animationOrchestrator.ApplyInput(cachedInput.VerticalInput, cachedInput.HorizontalInput, cachedInput.IsBoosting);
-            }
-            else
-            {
-                // Fallback для старых префабов без оркестратора.
-                trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
-            }
+            trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
             
             // Физика - выравнивание по земле
             movement.AlignToGround();

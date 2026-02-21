@@ -1,6 +1,5 @@
 using TankGame.Tank.Components;
 using TankGame.Tank;
-using TankGame.Tank.Animation;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -25,7 +24,6 @@ namespace TankGame.Tank.AI
         [SerializeField] private TankWeapon weapon;
         [SerializeField] private TankHealth health;
         [SerializeField] private TrackAnimationController trackAnimation;
-        [SerializeField] private TankAnimationOrchestrator animationOrchestrator;
         [SerializeField] private NavMeshAgent agent;
 
         [Header("Targeting")]
@@ -44,9 +42,16 @@ namespace TankGame.Tank.AI
         [SerializeField] private float fireRange = 20f;
         [SerializeField] private bool requireLineOfSight = true;
         [SerializeField] private LayerMask lineOfSightMask = ~0;
+        [SerializeField] private bool requireTurretAlignmentForFire = false;
+
+        [Header("Weapon Switching")]
+        [SerializeField] private bool enableWeaponSwitching = true;
+        [SerializeField] private float machineGunPreferredRange = 12f;
+        [SerializeField] private float weaponSwitchCooldown = 0.5f;
 
         private float nextTargetSearchTime;
         private float nextRepathTime;
+        private float nextWeaponSwitchTime;
         private float currentVerticalInput;
         private float currentHorizontalInput;
 
@@ -64,8 +69,6 @@ namespace TankGame.Tank.AI
                 health = GetComponent<TankHealth>();
             if (trackAnimation == null)
                 trackAnimation = GetComponent<TrackAnimationController>();
-            if (animationOrchestrator == null)
-                animationOrchestrator = GetComponent<TankAnimationOrchestrator>();
             if (agent == null)
                 agent = GetComponent<NavMeshAgent>();
 
@@ -105,11 +108,13 @@ namespace TankGame.Tank.AI
 
             Vector3 aimPoint = GetTargetAimPoint(target);
             turret.SetExternalAimPoint(aimPoint);
-            weapon.SetExternalAimPoint(aimPoint);
+            TankWeapon activeWeapon = GetActiveWeapon();
+            activeWeapon?.SetExternalAimPoint(aimPoint);
 
             if (!turret.IsAiming)
                 turret.StartAiming();
 
+            UpdateCombatWeapon(distance);
             UpdateMovementInputs(distance);
             TryFireAtTarget(distance, aimPoint);
             TryReloadIfNeeded();
@@ -121,15 +126,7 @@ namespace TankGame.Tank.AI
                 return;
 
             movement.ApplyMovement(currentVerticalInput, currentHorizontalInput, false);
-            if (animationOrchestrator != null)
-            {
-                animationOrchestrator.ApplyInput(currentVerticalInput, currentHorizontalInput, false);
-            }
-            else
-            {
-                // Fallback для старых префабов без оркестратора.
-                trackAnimation?.UpdateTrackAnimation(currentVerticalInput, currentHorizontalInput);
-            }
+            trackAnimation?.UpdateTrackAnimation(currentVerticalInput, currentHorizontalInput);
             movement.AlignToGround();
         }
 
@@ -217,43 +214,81 @@ namespace TankGame.Tank.AI
             }
 
             desiredWorld.Normalize();
-            Vector3 forward = transform.forward;
+            // TankMovement двигает при positive vertical в направлении -transform.forward.
+            // Поэтому для AI-руления используем именно это "реальное forward-направление движения",
+            // чтобы бот ехал к цели, а не от нее.
+            Vector3 forward = -transform.forward;
             forward.y = 0f;
             forward.Normalize();
 
             float signedAngle = Vector3.SignedAngle(forward, desiredWorld, Vector3.up);
             currentHorizontalInput = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
 
-            // В этой модели TankMovement: vertical = -1 означает движение вперед.
-            currentVerticalInput = Mathf.Abs(signedAngle) <= moveAngleLimit ? -1f : 0f;
+            // Positive vertical выбран под текущий префаб (визуально едет передом).
+            currentVerticalInput = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
         }
 
         private void TryFireAtTarget(float distanceToTarget, Vector3 aimPoint)
         {
-            if (weapon == null || turret == null)
+            TankWeapon activeWeapon = GetActiveWeapon();
+            if (activeWeapon == null || turret == null)
                 return;
 
             if (distanceToTarget > fireRange)
                 return;
 
-            if (!weapon.CanFire || !turret.IsFirePointAligned)
+            if (!activeWeapon.CanFire)
+                return;
+
+            if (requireTurretAlignmentForFire && !turret.IsFirePointAligned)
                 return;
 
             if (requireLineOfSight && !HasLineOfSight(aimPoint))
                 return;
 
             float stability = turret.GetFireStability();
-            weapon.Fire(stability);
+            activeWeapon.Fire(stability);
             turret.ResetStability();
         }
 
         private void TryReloadIfNeeded()
         {
-            if (weapon == null)
+            TankWeapon activeWeapon = GetActiveWeapon();
+            if (activeWeapon == null)
                 return;
 
-            if (!weapon.IsReloading && weapon.CurrentAmmoInMagazine <= 0 && weapon.ReserveAmmo > 0)
-                weapon.TryReload();
+            if (!activeWeapon.IsReloading && activeWeapon.CurrentAmmoInMagazine <= 0 && activeWeapon.ReserveAmmo > 0)
+                activeWeapon.TryReload();
+        }
+
+        private void UpdateCombatWeapon(float distanceToTarget)
+        {
+            if (!enableWeaponSwitching || tankController == null || Time.time < nextWeaponSwitchTime)
+                return;
+
+            WeaponType desiredWeapon =
+                distanceToTarget <= machineGunPreferredRange ? WeaponType.MachineGun : WeaponType.Cannon;
+
+            if (tankController.ActiveWeaponType == desiredWeapon)
+                return;
+
+            if (desiredWeapon == WeaponType.MachineGun && tankController.MachineGunWeapon == null)
+                return;
+
+            if (desiredWeapon == WeaponType.Cannon && tankController.CannonWeapon == null)
+                return;
+
+            tankController.SwitchWeapon(desiredWeapon);
+            weapon = tankController.Weapon;
+            nextWeaponSwitchTime = Time.time + Mathf.Max(0.05f, weaponSwitchCooldown);
+        }
+
+        private TankWeapon GetActiveWeapon()
+        {
+            if (tankController != null && tankController.Weapon != null)
+                return tankController.Weapon;
+
+            return weapon;
         }
 
         private bool HasLineOfSight(Vector3 aimPoint)
@@ -289,7 +324,8 @@ namespace TankGame.Tank.AI
                 agent.ResetPath();
 
             turret?.ClearExternalAimPoint();
-            weapon?.ClearExternalAimPoint();
+            TankWeapon activeWeapon = GetActiveWeapon();
+            activeWeapon?.ClearExternalAimPoint();
 
             if (turret != null && turret.IsAiming)
                 turret.StopAiming();

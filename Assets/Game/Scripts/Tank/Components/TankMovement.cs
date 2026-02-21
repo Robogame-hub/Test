@@ -125,6 +125,7 @@ namespace TankGame.Tank.Components
         {
             rb = GetComponent<Rigidbody>();
             ConfigureRigidbody();
+            cachedGroundRotation = rb != null ? rb.rotation : transform.rotation;
         }
 
         private void Start()
@@ -385,14 +386,46 @@ namespace TankGame.Tank.Components
             }
 
             // Плавно применяем кэшированное вращение ЧЕРЕЗ ФИЗИКУ для предотвращения дергания
+            if (!IsValidQuaternion(cachedGroundRotation))
+                cachedGroundRotation = rb.rotation;
+
             Quaternion targetRotation = Quaternion.Slerp(
                 rb.rotation,
                 cachedGroundRotation,
                 groundAlignSpeed * Time.fixedDeltaTime
             );
+
+            if (!IsValidQuaternion(targetRotation))
+            {
+                targetRotation = rb.rotation;
+            }
+            else
+            {
+                targetRotation = NormalizeQuaternion(targetRotation);
+            }
             
             // Используем MoveRotation вместо прямого изменения transform
             rb.MoveRotation(targetRotation);
+        }
+
+        private static Quaternion NormalizeQuaternion(Quaternion q)
+        {
+            float magnitude = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+            if (magnitude < 1e-6f || float.IsNaN(magnitude) || float.IsInfinity(magnitude))
+                return Quaternion.identity;
+
+            float inv = 1f / magnitude;
+            return new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
+        }
+
+        private static bool IsValidQuaternion(Quaternion q)
+        {
+            return IsFinite(q.x) && IsFinite(q.y) && IsFinite(q.z) && IsFinite(q.w);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
         
         /// <summary>
