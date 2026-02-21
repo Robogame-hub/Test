@@ -64,7 +64,8 @@ namespace TankGame.Weapons
                 bulletCollider = sphere;
             }
 
-            bulletCollider.isTrigger = false;
+            // Bullet should not push rigidbodies on impact.
+            bulletCollider.isTrigger = true;
             
             // Tracer
             if (enableTracer)
@@ -135,6 +136,23 @@ namespace TankGame.Weapons
             // Получаем точку и нормаль столкновения
             ContactPoint contact = collision.contacts[0];
             HandleImpact(contact.point, contact.normal, collision.gameObject);
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (!isActive || other == null)
+                return;
+
+            // Ignore owner tank colliders.
+            TankWeapon ownerCheck = other.GetComponentInParent<TankWeapon>();
+            if (ownerCheck != null && ownerCheck == ownerWeapon)
+                return;
+
+            Vector3 hitPoint = other.ClosestPoint(transform.position);
+            Vector3 velocity = rb != null ? rb.linearVelocity : Vector3.zero;
+            Vector3 hitNormal = velocity.sqrMagnitude > 0.0001f ? -velocity.normalized : -transform.forward;
+
+            HandleImpact(hitPoint, hitNormal, other.gameObject);
         }
 
         private void HandleImpact(Vector3 hitPoint, Vector3 hitNormal, GameObject hitObject)
