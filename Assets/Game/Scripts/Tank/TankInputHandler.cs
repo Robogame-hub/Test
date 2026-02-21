@@ -74,6 +74,10 @@ namespace TankGame.Tank
                 weaponSlot = 1;
             else if (Input.GetKeyDown(KeyCode.Alpha2))
                 weaponSlot = 2;
+            else if (Input.GetKeyDown(KeyCode.Keypad1))
+                weaponSlot = 1;
+            else if (Input.GetKeyDown(KeyCode.Keypad2))
+                weaponSlot = 2;
 
             lastCommand = new TankInputCommand(
                 vertical,

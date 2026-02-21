@@ -1,5 +1,6 @@
 using TankGame.Tank.Components;
 using TankGame.Tank;
+using TankGame.Tank.Animation;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -24,6 +25,7 @@ namespace TankGame.Tank.AI
         [SerializeField] private TankWeapon weapon;
         [SerializeField] private TankHealth health;
         [SerializeField] private TrackAnimationController trackAnimation;
+        [SerializeField] private TankAnimationOrchestrator animationOrchestrator;
         [SerializeField] private NavMeshAgent agent;
 
         [Header("Targeting")]
@@ -62,13 +64,18 @@ namespace TankGame.Tank.AI
                 health = GetComponent<TankHealth>();
             if (trackAnimation == null)
                 trackAnimation = GetComponent<TrackAnimationController>();
+            if (animationOrchestrator == null)
+                animationOrchestrator = GetComponent<TankAnimationOrchestrator>();
             if (agent == null)
                 agent = GetComponent<NavMeshAgent>();
 
+            ConfigureAgent();
+        }
+
+        private void OnEnable()
+        {
             if (tankController != null)
                 tankController.SetIsLocalPlayer(false);
-
-            ConfigureAgent();
         }
 
         private void Update()
@@ -114,7 +121,15 @@ namespace TankGame.Tank.AI
                 return;
 
             movement.ApplyMovement(currentVerticalInput, currentHorizontalInput, false);
-            trackAnimation?.UpdateTrackAnimation(currentVerticalInput, currentHorizontalInput);
+            if (animationOrchestrator != null)
+            {
+                animationOrchestrator.ApplyInput(currentVerticalInput, currentHorizontalInput, false);
+            }
+            else
+            {
+                // Fallback для старых префабов без оркестратора.
+                trackAnimation?.UpdateTrackAnimation(currentVerticalInput, currentHorizontalInput);
+            }
             movement.AlignToGround();
         }
 

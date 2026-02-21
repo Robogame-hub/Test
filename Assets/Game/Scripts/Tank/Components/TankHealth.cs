@@ -47,6 +47,11 @@ namespace TankGame.Tank.Components
 
         private void Awake()
         {
+            OnHealthChanged ??= new UnityEvent<float, float>();
+            OnDamageTaken ??= new UnityEvent<Vector3, Vector3>();
+            OnDeath ??= new UnityEvent();
+            OnRespawn ??= new UnityEvent();
+
             currentHealth = maxHealth;
             tankController = GetComponent<TankController>();
         }

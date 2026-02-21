@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Commands;
+using TankGame.Tank.Animation;
 using TankGame.Tank.Components;
 using UnityEngine.Events;
 using System.Collections;
@@ -32,6 +33,8 @@ namespace TankGame.Tank
         [SerializeField] private TankHealth health;
         [Tooltip("Компонент анимации гусениц")]
         [SerializeField] private TrackAnimationController trackAnimation;
+        [Tooltip("Единая точка управления анимациями танка")]
+        [SerializeField] private TankAnimationOrchestrator animationOrchestrator;
         [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
 
@@ -82,6 +85,13 @@ namespace TankGame.Tank
             InitializeComponents();
         }
 
+        private void Start()
+        {
+            // Повторно применяем стартовый слот после инициализации всех компонентов.
+            // Это защищает от редких случаев, когда роли оружия/ссылки переопределяются позднее.
+            SwitchWeapon(startWeapon, true);
+        }
+
         private void InitializeComponents()
         {
             // Получаем компоненты если не назначены
@@ -91,24 +101,13 @@ namespace TankGame.Tank
                 turret = GetComponent<TankTurret>();
             if (weapon == null)
                 weapon = GetComponent<TankWeapon>();
-            if (cannonWeapon == null)
-                cannonWeapon = weapon;
-            if (machineGunWeapon == null)
-            {
-                TankWeapon[] weapons = GetComponents<TankWeapon>();
-                for (int i = 0; i < weapons.Length; i++)
-                {
-                    if (weapons[i] != null && weapons[i] != cannonWeapon)
-                    {
-                        machineGunWeapon = weapons[i];
-                        break;
-                    }
-                }
-            }
+            ResolveWeaponSlots();
             if (health == null)
                 health = GetComponent<TankHealth>();
             if (trackAnimation == null)
                 trackAnimation = GetComponent<TrackAnimationController>() ?? gameObject.AddComponent<TrackAnimationController>();
+            if (animationOrchestrator == null)
+                animationOrchestrator = GetComponent<TankAnimationOrchestrator>() ?? gameObject.AddComponent<TankAnimationOrchestrator>();
             if (inputHandler == null)
                 inputHandler = GetComponent<TankInputHandler>() ?? gameObject.AddComponent<TankInputHandler>();
 
@@ -133,7 +132,15 @@ namespace TankGame.Tank
             
             // Физика - используем ввод, собранный в Update (без повторного чтения Input)
             ProcessPhysicalMovement(cachedInput);
-            trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
+            if (animationOrchestrator != null)
+            {
+                animationOrchestrator.ApplyInput(cachedInput.VerticalInput, cachedInput.HorizontalInput, cachedInput.IsBoosting);
+            }
+            else
+            {
+                // Fallback для старых префабов без оркестратора.
+                trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
+            }
             
             // Физика - выравнивание по земле
             movement.AlignToGround();
@@ -299,9 +306,15 @@ namespace TankGame.Tank
             if (!force && activeWeaponType == targetWeapon)
                 return;
 
+            ResolveWeaponSlots();
+
             TankWeapon nextWeapon = targetWeapon == WeaponType.MachineGun ? machineGunWeapon : cannonWeapon;
             if (nextWeapon == null)
+            {
+                if (targetWeapon == WeaponType.MachineGun)
+                    Debug.LogWarning("[TankController] MachineGun weapon is not assigned/found. Assign a second TankWeapon in inspector.");
                 return;
+            }
 
             if (machineGunBurstCoroutine != null)
             {
@@ -317,6 +330,109 @@ namespace TankGame.Tank
             turret?.SetWeapon(weapon);
             turret?.SetWeaponMode(activeWeaponType);
             onWeaponChanged?.Invoke(activeWeaponType, weapon);
+        }
+
+        private TankWeapon FindAlternativeWeapon(TankWeapon primaryWeapon)
+        {
+            TankWeapon[] localWeapons = GetComponents<TankWeapon>();
+            for (int i = 0; i < localWeapons.Length; i++)
+            {
+                if (localWeapons[i] != null && localWeapons[i] != primaryWeapon)
+                    return localWeapons[i];
+            }
+
+            TankWeapon[] childWeapons = GetComponentsInChildren<TankWeapon>(true);
+            for (int i = 0; i < childWeapons.Length; i++)
+            {
+                if (childWeapons[i] != null && childWeapons[i] != primaryWeapon)
+                    return childWeapons[i];
+            }
+
+            return null;
+        }
+
+        private void ResolveWeaponSlots()
+        {
+            TankWeapon[] localWeapons = GetComponents<TankWeapon>();
+            TankWeapon[] childWeapons = GetComponentsInChildren<TankWeapon>(true);
+
+            TankWeapon[] allWeapons = new TankWeapon[localWeapons.Length + childWeapons.Length];
+            int count = 0;
+
+            for (int i = 0; i < localWeapons.Length; i++)
+            {
+                TankWeapon w = localWeapons[i];
+                if (w == null)
+                    continue;
+                allWeapons[count++] = w;
+            }
+
+            for (int i = 0; i < childWeapons.Length; i++)
+            {
+                TankWeapon w = childWeapons[i];
+                if (w == null)
+                    continue;
+
+                bool exists = false;
+                for (int j = 0; j < count; j++)
+                {
+                    if (allWeapons[j] == w)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                    allWeapons[count++] = w;
+            }
+
+            if (count == 0)
+                return;
+
+            if (count == 1)
+            {
+                if (cannonWeapon == null)
+                    cannonWeapon = allWeapons[0];
+                if (weapon == null)
+                    weapon = cannonWeapon;
+                return;
+            }
+
+            TankWeapon fastest = allWeapons[0];
+            TankWeapon slowest = allWeapons[0];
+            for (int i = 1; i < count; i++)
+            {
+                TankWeapon w = allWeapons[i];
+                if (w == null)
+                    continue;
+
+                if (w.FireCooldown < fastest.FireCooldown)
+                    fastest = w;
+                if (w.FireCooldown > slowest.FireCooldown)
+                    slowest = w;
+            }
+
+            if (machineGunWeapon == null)
+                machineGunWeapon = fastest;
+            if (cannonWeapon == null)
+                cannonWeapon = slowest;
+
+            if (machineGunWeapon == cannonWeapon)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    TankWeapon candidate = allWeapons[i];
+                    if (candidate != null && candidate != machineGunWeapon)
+                    {
+                        cannonWeapon = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (weapon == null)
+                weapon = cannonWeapon != null ? cannonWeapon : machineGunWeapon;
         }
 
         private void OnDisable()
