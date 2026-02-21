@@ -2,7 +2,6 @@ using UnityEngine;
 using TankGame.Commands;
 using TankGame.Tank.Components;
 using UnityEngine.Events;
-using System.Collections;
 
 namespace TankGame.Tank
 {
@@ -41,10 +40,8 @@ namespace TankGame.Tank
 
         [Header("Weapon Switching")]
         [SerializeField] private WeaponType startWeapon = WeaponType.Cannon;
-        [Tooltip("Количество выстрелов в очереди пулемета")]
-        [SerializeField] private int machineGunBurstCount = 5;
-        [Tooltip("Время удержания ЛКМ для перехода пулемета в режим очереди")]
-        [SerializeField] private float machineGunHoldForBurst = 0.2f;
+        [Tooltip("Автоматически перезаряжать пулемет при пустом магазине")]
+        [SerializeField] private bool autoReloadMachineGun = true;
 
         [System.Serializable]
         public class WeaponChangedEvent : UnityEvent<WeaponType, TankWeapon> { }
@@ -52,10 +49,6 @@ namespace TankGame.Tank
         [SerializeField] private WeaponChangedEvent onWeaponChanged = new WeaponChangedEvent();
         
         private TankInputCommand cachedInput;
-        private Coroutine machineGunBurstCoroutine;
-        private bool isMachineGunBursting;
-        private bool machineGunPendingSingleShot;
-        private float machineGunPressTime;
         private WeaponType activeWeaponType = WeaponType.Cannon;
 
         // Публичные свойства для доступа к компонентам
@@ -200,92 +193,33 @@ namespace TankGame.Tank
                 SwitchWeapon(WeaponType.MachineGun);
         }
 
-        private void TryStartMachineGunBurst()
-        {
-            if (weapon == null || isMachineGunBursting)
-                return;
-
-            if (!weapon.CanFire)
-                return;
-
-            if (machineGunBurstCoroutine != null)
-                StopCoroutine(machineGunBurstCoroutine);
-
-            machineGunBurstCoroutine = StartCoroutine(FireMachineGunBurstRoutine());
-        }
-
         private void ProcessMachineGunFire(TankInputCommand command)
         {
-            bool hasLegacyFireOnly = command.IsFiring && !command.IsFiringPressed && !command.IsFiringHeld && !command.IsFiringReleased;
-            if (hasLegacyFireOnly)
-            {
-                TryStartMachineGunBurst();
+            if (weapon == null)
                 return;
-            }
 
-            if (command.IsFiringPressed)
-            {
-                machineGunPendingSingleShot = true;
-                machineGunPressTime = Time.time;
-            }
-
-            if (machineGunPendingSingleShot &&
-                command.IsFiringHeld &&
-                Time.time - machineGunPressTime >= machineGunHoldForBurst)
-            {
-                machineGunPendingSingleShot = false;
-                TryStartMachineGunBurst();
-            }
-
-            if (command.IsFiringReleased && machineGunPendingSingleShot)
-            {
-                machineGunPendingSingleShot = false;
-                TryFireSingleMachineGunShot();
-            }
-        }
-
-        private void TryFireSingleMachineGunShot()
-        {
-            if (weapon == null || !weapon.CanFire)
+            bool wantsFire = command.IsFiringPressed || command.IsFiringHeld || command.IsFiring;
+            if (!wantsFire)
                 return;
+
             if (!turret.IsFirePointAligned)
                 return;
 
-            float stability = turret.GetFireStability();
-            weapon.Fire(stability);
-            turret.ResetStability();
-        }
-
-        private IEnumerator FireMachineGunBurstRoutine()
-        {
-            isMachineGunBursting = true;
-            int shotsToFire = Mathf.Max(1, machineGunBurstCount);
-
-            for (int i = 0; i < shotsToFire; i++)
+            if (weapon.CanFire)
             {
-                if (weapon == null || !turret.IsAiming)
-                    break;
-
-                if (!turret.IsFirePointAligned)
-                {
-                    yield return null;
-                    i--;
-                    continue;
-                }
-
-                if (!weapon.CanFire)
-                    break;
-
                 float stability = turret.GetFireStability();
                 weapon.Fire(stability);
                 turret.ResetStability();
-
-                yield return new WaitForSeconds(Mathf.Max(0.01f, weapon.FireCooldown));
+                return;
             }
 
-            weapon?.TryReload();
-            isMachineGunBursting = false;
-            machineGunBurstCoroutine = null;
+            if (autoReloadMachineGun &&
+                !weapon.IsReloading &&
+                weapon.CurrentAmmoInMagazine <= 0 &&
+                weapon.ReserveAmmo > 0)
+            {
+                weapon.TryReload();
+            }
         }
 
         public void SwitchWeapon(WeaponType targetWeapon, bool force = false)
@@ -302,15 +236,6 @@ namespace TankGame.Tank
                     Debug.LogWarning("[TankController] MachineGun weapon is not assigned/found. Assign a second TankWeapon in inspector.");
                 return;
             }
-
-            if (machineGunBurstCoroutine != null)
-            {
-                StopCoroutine(machineGunBurstCoroutine);
-                machineGunBurstCoroutine = null;
-                isMachineGunBursting = false;
-            }
-
-            machineGunPendingSingleShot = false;
 
             weapon = nextWeapon;
             activeWeaponType = targetWeapon;
@@ -424,14 +349,6 @@ namespace TankGame.Tank
 
         private void OnDisable()
         {
-            if (machineGunBurstCoroutine != null)
-            {
-                StopCoroutine(machineGunBurstCoroutine);
-                machineGunBurstCoroutine = null;
-            }
-
-            isMachineGunBursting = false;
-            machineGunPendingSingleShot = false;
         }
 
 

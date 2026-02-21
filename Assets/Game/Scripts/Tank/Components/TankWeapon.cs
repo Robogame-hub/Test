@@ -33,6 +33,10 @@ namespace TankGame.Tank.Components
         [Tooltip("Длительность перезарядки (секунды)")]
         [SerializeField] private float reloadDuration = 1.5f;
 
+        [Header("Damage Settings")]
+        [Tooltip("Базовый урон, который наносит это оружие")]
+        [SerializeField] private float bulletDamage = 10f;
+
         [Header("Spread Settings")]
         [Tooltip("Минимальный разброс при максимальной стабильности (градусы)")]
         [SerializeField] private float minSpreadAngle = 0.5f;
@@ -90,6 +94,7 @@ namespace TankGame.Tank.Components
         public int ReserveAmmo => reserveAmmo;
         public bool IsReloading => isReloading;
         public AmmoChangedEvent OnAmmoChanged => onAmmoChanged;
+        public float BulletDamage => bulletDamage;
 
         private void Awake()
         {
@@ -251,7 +256,7 @@ namespace TankGame.Tank.Components
             );
 
             // Инициализируем пулю
-            bullet.Initialize(this, impactVFX, bulletLifetime);
+            bullet.Initialize(this, impactVFX, bulletLifetime, bulletDamage);
 
             // Применяем физику
             Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
@@ -375,6 +380,7 @@ namespace TankGame.Tank.Components
         private System.Collections.IEnumerator ReloadRoutine()
         {
             isReloading = true;
+            NotifyAmmoChanged(); // Сразу обновляем UI состоянием "перезарядка"
             yield return new WaitForSeconds(reloadDuration);
 
             int neededAmmo = magazineSize - currentAmmoInMagazine;

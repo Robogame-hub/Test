@@ -33,11 +33,12 @@ namespace TankGame.Weapons
         private TankWeapon ownerWeapon;
         private GameObject impactEffect;
         private float lifetime;
+        private float runtimeDamage;
         private float spawnTime;
         private bool isActive;
         private BulletTracer tracer;
 
-        public float Damage => damage;
+        public float Damage => runtimeDamage > 0f ? runtimeDamage : damage;
         public float TimeAlive => Time.time - spawnTime;
 
         private void Awake()
@@ -87,11 +88,12 @@ namespace TankGame.Weapons
         /// <summary>
         /// Инициализация пули (вызывается при получении из пула)
         /// </summary>
-        public void Initialize(TankWeapon weapon, GameObject impact, float life)
+        public void Initialize(TankWeapon weapon, GameObject impact, float life, float weaponDamage)
         {
             ownerWeapon = weapon;
             impactEffect = impact;
             lifetime = life;
+            runtimeDamage = Mathf.Max(0f, weaponDamage);
             spawnTime = Time.time;
             isActive = true;
         }
@@ -164,14 +166,15 @@ namespace TankGame.Weapons
             if (randomValue <= penetrationChance)
             {
                 // Пробитие успешно - полный урон
-                Debug.Log($"[Bullet] Penetration SUCCESS! Full damage: {damage}");
-                return damage;
+                float fullDamage = Damage;
+                Debug.Log($"[Bullet] Penetration SUCCESS! Full damage: {fullDamage}");
+                return fullDamage;
             }
             else
             {
                 // Пробитие не удалось - урон уменьшается
-                float reducedDamage = damage * nonPenetrationDamageMultiplier;
-                Debug.Log($"[Bullet] Penetration FAILED! Reduced damage: {reducedDamage} (from {damage}, multiplier: {nonPenetrationDamageMultiplier})");
+                float reducedDamage = Damage * nonPenetrationDamageMultiplier;
+                Debug.Log($"[Bullet] Penetration FAILED! Reduced damage: {reducedDamage} (from {Damage}, multiplier: {nonPenetrationDamageMultiplier})");
                 return reducedDamage;
             }
         }
@@ -212,6 +215,7 @@ namespace TankGame.Weapons
                 return;
 
             isActive = false;
+            runtimeDamage = 0f;
 
             if (ownerWeapon != null)
             {
