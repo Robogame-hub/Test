@@ -24,6 +24,26 @@ namespace TankGame.Tank.Components
         [Tooltip("Мёртвая зона: башня останавливается если угол до цели меньше этого значения (градусы).\n⚠ Держи значение < 1°. При большом значении башня не доворачивает до прицела!")]
         [SerializeField][Range(0f, 1f)] private float turretAimDeadZone = 0.1f;
 
+        [Header("Turret Audio")]
+        [Tooltip("Источник звука поворота башни")]
+        [SerializeField] private AudioSource turretRotationAudioSource;
+        [Tooltip("Петлевой звук поворота башни")]
+        [SerializeField] private AudioClip turretRotationLoopSound;
+        [Tooltip("Минимальная скорость поворота для включения звука (град/сек)")]
+        [SerializeField] private float minRotationSpeedForSound = 5f;
+        [Tooltip("Максимальная ожидаемая скорость поворота для нормализации звука (град/сек)")]
+        [SerializeField] private float maxRotationSpeedForSound = 120f;
+        [Tooltip("Минимальная громкость звука поворота")]
+        [SerializeField][Range(0f, 1f)] private float minRotationVolume = 0.15f;
+        [Tooltip("Максимальная громкость звука поворота")]
+        [SerializeField][Range(0f, 1f)] private float maxRotationVolume = 0.8f;
+        [Tooltip("Минимальный pitch звука поворота")]
+        [SerializeField] private float minRotationPitch = 0.9f;
+        [Tooltip("Максимальный pitch звука поворота")]
+        [SerializeField] private float maxRotationPitch = 1.2f;
+        [Tooltip("Скорость сглаживания громкости/тона звука поворота")]
+        [SerializeField] private float rotationAudioLerpSpeed = 8f;
+
         [Header("Orientation Calibration")]
         [Tooltip("Смещение ориентации башни по оси Y (в градусах). Используйте для моделей, у которых forward смещен (например на 90°).")]
         [SerializeField][Range(-180f, 180f)] private float turretAimYawOffset = 0f;
@@ -115,6 +135,7 @@ namespace TankGame.Tank.Components
         private TankMovement   tankMovement;
         private TankController tankController;
         private LineRenderer   fireLineRenderer;
+        private float          targetRotationAudioVolume;
 
         // ─── Public API ───────────────────────────────────────────────────────
         public Transform Turret          => turret;
@@ -162,6 +183,9 @@ namespace TankGame.Tank.Components
             if (turretCamera == null)
                 turretCamera = Camera.main;
 
+            if (turretRotationAudioSource == null)
+                turretRotationAudioSource = GetComponent<AudioSource>() ?? GetComponentInChildren<AudioSource>();
+
             InitializeTurretTransform();
         }
 
@@ -181,6 +205,7 @@ namespace TankGame.Tank.Components
                                 + cameraStartYawOffset;
 
             CreateFireLineRenderer();
+            InitializeRotationAudio();
         }
 
         // ─── Initialization ───────────────────────────────────────────────────
@@ -244,9 +269,12 @@ namespace TankGame.Tank.Components
             }
             else
             {
+                currentTurretRotationSpeed = 0f;
                 if (fireLineRenderer != null)
                     fireLineRenderer.enabled = false;
             }
+
+            UpdateTurretRotationAudio();
         }
 
         // ─── Turret rotation ──────────────────────────────────────────────────
@@ -298,6 +326,47 @@ namespace TankGame.Tank.Components
             // Крутим вокруг локальной оси "вверх" корпуса/родителя башни.
             // Это убирает перекосы на склонах: башня вращается только влево/вправо.
             turret.rotation = Quaternion.AngleAxis(step, rotationAxis) * turret.rotation;
+        }
+
+        private void InitializeRotationAudio()
+        {
+            if (turretRotationAudioSource == null || turretRotationLoopSound == null)
+                return;
+
+            turretRotationAudioSource.clip = turretRotationLoopSound;
+            turretRotationAudioSource.loop = true;
+            turretRotationAudioSource.playOnAwake = false;
+            turretRotationAudioSource.volume = 0f;
+            turretRotationAudioSource.pitch = minRotationPitch;
+        }
+
+        private void UpdateTurretRotationAudio()
+        {
+            if (turretRotationAudioSource == null || turretRotationLoopSound == null)
+                return;
+
+            float normalizedSpeed = Mathf.InverseLerp(minRotationSpeedForSound, maxRotationSpeedForSound, currentTurretRotationSpeed);
+            targetRotationAudioVolume = normalizedSpeed > 0f
+                ? Mathf.Lerp(minRotationVolume, maxRotationVolume, normalizedSpeed)
+                : 0f;
+
+            float nextVolume = Mathf.Lerp(
+                turretRotationAudioSource.volume,
+                targetRotationAudioVolume,
+                Time.deltaTime * rotationAudioLerpSpeed);
+
+            turretRotationAudioSource.volume = nextVolume;
+            turretRotationAudioSource.pitch = Mathf.Lerp(minRotationPitch, maxRotationPitch, normalizedSpeed);
+
+            if (nextVolume > 0.01f)
+            {
+                if (!turretRotationAudioSource.isPlaying)
+                    turretRotationAudioSource.Play();
+            }
+            else if (turretRotationAudioSource.isPlaying)
+            {
+                turretRotationAudioSource.Stop();
+            }
         }
 
         // ─── Camera ───────────────────────────────────────────────────────────
@@ -576,5 +645,11 @@ namespace TankGame.Tank.Components
                 $"YawOffset: {turretAimYawOffset:F1}°  Diff: {diff:F1}°");
         }
 #endif
+
+        private void OnDisable()
+        {
+            if (turretRotationAudioSource != null && turretRotationAudioSource.isPlaying)
+                turretRotationAudioSource.Stop();
+        }
     }
 }

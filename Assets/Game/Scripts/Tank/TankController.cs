@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Commands;
+using TankGame.Core;
 using TankGame.Tank.Components;
 using UnityEngine.Events;
 
@@ -14,6 +15,7 @@ namespace TankGame.Tank
     [RequireComponent(typeof(TankTurret))]
     [RequireComponent(typeof(TankWeapon))]
     [RequireComponent(typeof(TankHealth))]
+    [RequireComponent(typeof(TankAnnouncer))]
     public class TankController : MonoBehaviour
     {
         [Header("Components")]
@@ -33,6 +35,8 @@ namespace TankGame.Tank
         [SerializeField] private TrackAnimationController trackAnimation;
         [Tooltip("Обработчик ввода")]
         [SerializeField] private TankInputHandler inputHandler;
+        [Tooltip("Компонент диктора")]
+        [SerializeField] private TankAnnouncer announcer;
 
         [Header("Player Settings")]
         [Tooltip("Является ли этот танк локальным игроком (управляется на этом клиенте)")]
@@ -42,6 +46,18 @@ namespace TankGame.Tank
         [SerializeField] private WeaponType startWeapon = WeaponType.Cannon;
         [Tooltip("Автоматически перезаряжать пулемет при пустом магазине")]
         [SerializeField] private bool autoReloadMachineGun = true;
+        [Tooltip("Источник звука для переключения оружия")]
+        [SerializeField] private AudioSource weaponSwitchAudioSource;
+        [Tooltip("Звук переключения оружия")]
+        [SerializeField] private AudioClip weaponSwitchSound;
+        [Tooltip("Громкость звука переключения")]
+        [SerializeField] [Range(0f, 1f)] private float weaponSwitchVolume = 1f;
+
+        [Header("Announcer Conditions")]
+        [Tooltip("Порог HP для реплики о критическом состоянии (0-1)")]
+        [SerializeField] [Range(0f, 1f)] private float lowHpThreshold = 0.3f;
+        [Tooltip("Порог сброса флага low HP (нужен, чтобы реплика могла прозвучать снова после лечения)")]
+        [SerializeField] [Range(0f, 1f)] private float lowHpResetThreshold = 0.5f;
 
         [System.Serializable]
         public class WeaponChangedEvent : UnityEvent<WeaponType, TankWeapon> { }
@@ -50,6 +66,7 @@ namespace TankGame.Tank
         
         private TankInputCommand cachedInput;
         private WeaponType activeWeaponType = WeaponType.Cannon;
+        private bool lowHpAnnounced;
 
         // Публичные свойства для доступа к компонентам
         public TankMovement Movement => movement;
@@ -98,6 +115,13 @@ namespace TankGame.Tank
                 trackAnimation = GetComponent<TrackAnimationController>() ?? gameObject.AddComponent<TrackAnimationController>();
             if (inputHandler == null)
                 inputHandler = GetComponent<TankInputHandler>() ?? gameObject.AddComponent<TankInputHandler>();
+            if (announcer == null)
+                announcer = GetComponent<TankAnnouncer>();
+            if (weaponSwitchAudioSource == null)
+                weaponSwitchAudioSource = GetComponent<AudioSource>() ?? GetComponentInChildren<AudioSource>();
+
+            if (health != null)
+                health.OnHealthChanged.AddListener(HandleHealthChanged);
 
             SwitchWeapon(startWeapon, true);
         }
@@ -150,6 +174,9 @@ namespace TankGame.Tank
             {
                 if (!turret.IsAiming)
                     turret.StartAiming();
+
+                if (IsAimingAtEnemy())
+                    announcer?.TryPlayTargetSpotted();
             }
             else
             {
@@ -160,7 +187,8 @@ namespace TankGame.Tank
             // Перезарядка
             if (command.IsReloadRequested)
             {
-                weapon.TryReload();
+                if (weapon.TryReload())
+                    announcer?.TryPlayReloading();
             }
 
             // Стрельба
@@ -168,11 +196,20 @@ namespace TankGame.Tank
             {
                 ProcessMachineGunFire(command);
             }
-            else if ((command.IsFiringPressed || command.IsFiring) && turret.IsFirePointAligned && weapon.CanFire)
+            else if (command.IsFiringPressed && turret.IsFirePointAligned && weapon.CanFire)
             {
                 float stability = turret.GetFireStability();
                 weapon.Fire(stability);
                 turret.ResetStability();
+            }
+            else if ((command.IsFiringPressed || command.IsFiringHeld) &&
+                     turret.IsFirePointAligned &&
+                     weapon != null &&
+                     !weapon.IsReloading &&
+                     weapon.CurrentAmmoInMagazine <= 0)
+            {
+                weapon.TryPlayEmptyShotSound();
+                AnnounceAmmoStatus(weapon);
             }
         }
         
@@ -202,9 +239,6 @@ namespace TankGame.Tank
             if (!wantsFire)
                 return;
 
-            if (!turret.IsFirePointAligned)
-                return;
-
             if (weapon.CanFire)
             {
                 float stability = turret.GetFireStability();
@@ -213,12 +247,88 @@ namespace TankGame.Tank
                 return;
             }
 
+            if (!weapon.IsReloading && weapon.CurrentAmmoInMagazine <= 0)
+            {
+                weapon.TryPlayEmptyShotSound();
+                AnnounceAmmoStatus(weapon);
+            }
+
             if (autoReloadMachineGun &&
                 !weapon.IsReloading &&
                 weapon.CurrentAmmoInMagazine <= 0 &&
                 weapon.ReserveAmmo > 0)
             {
-                weapon.TryReload();
+                if (weapon.TryReload())
+                    announcer?.TryPlayReloading();
+            }
+        }
+
+        private void AnnounceAmmoStatus(TankWeapon activeWeapon)
+        {
+            if (activeWeapon == null || announcer == null)
+                return;
+
+            if (activeWeapon.CurrentAmmoInMagazine <= 0 && activeWeapon.ReserveAmmo > 0)
+            {
+                announcer.TryPlayNeedReload();
+            }
+            else if (activeWeapon.CurrentAmmoInMagazine <= 0 && activeWeapon.ReserveAmmo <= 0)
+            {
+                announcer.TryPlayOutOfAmmo();
+            }
+        }
+
+        private bool IsAimingAtEnemy()
+        {
+            if (turret == null || weapon == null || weapon.FirePoint == null)
+                return false;
+
+            Vector3 origin = weapon.FirePoint.position;
+            Vector3 aimPoint = turret.GetAimPointFromMouse();
+            Vector3 direction = aimPoint - origin;
+            float distance = direction.magnitude;
+
+            if (distance < 0.01f)
+                return false;
+
+            direction /= distance;
+
+            if (!Physics.Raycast(origin, direction, out RaycastHit hit, distance))
+                return false;
+
+            IDamageable target = hit.collider.GetComponentInParent<IDamageable>();
+            if (target == null || !target.IsAlive())
+                return false;
+
+            if (IsSameTank(target))
+                return false;
+
+            return true;
+        }
+
+        private bool IsSameTank(IDamageable target)
+        {
+            Component targetComponent = target as Component;
+            if (targetComponent == null)
+                return false;
+
+            return targetComponent.transform.root == transform.root;
+        }
+
+        private void HandleHealthChanged(float current, float max)
+        {
+            if (max <= 0f)
+                return;
+
+            float hpRatio = current / max;
+            if (!lowHpAnnounced && hpRatio <= lowHpThreshold)
+            {
+                lowHpAnnounced = true;
+                announcer?.TryPlayLowHp();
+            }
+            else if (lowHpAnnounced && hpRatio >= lowHpResetThreshold)
+            {
+                lowHpAnnounced = false;
             }
         }
 
@@ -242,6 +352,15 @@ namespace TankGame.Tank
             turret?.SetWeapon(weapon);
             turret?.SetWeaponMode(activeWeaponType);
             onWeaponChanged?.Invoke(activeWeaponType, weapon);
+            PlayWeaponSwitchSound();
+        }
+
+        private void PlayWeaponSwitchSound()
+        {
+            if (weaponSwitchAudioSource == null || weaponSwitchSound == null)
+                return;
+
+            weaponSwitchAudioSource.PlayOneShot(weaponSwitchSound, weaponSwitchVolume);
         }
 
         private TankWeapon FindAlternativeWeapon(TankWeapon primaryWeapon)
@@ -349,6 +468,12 @@ namespace TankGame.Tank
 
         private void OnDisable()
         {
+        }
+
+        private void OnDestroy()
+        {
+            if (health != null)
+                health.OnHealthChanged.RemoveListener(HandleHealthChanged);
         }
 
 

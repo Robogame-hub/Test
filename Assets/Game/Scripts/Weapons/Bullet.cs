@@ -28,15 +28,27 @@ namespace TankGame.Weapons
         [Tooltip("Включить трассер (визуальный след)")]
         [SerializeField] private bool enableTracer = true;
 
+        [Header("Impact Audio")]
+        [Tooltip("Звук точного попадания (например, успешное пробитие цели)")]
+        [SerializeField] private AudioClip preciseHitSound;
+        [Tooltip("Звук рикошета (промах по цели или непробитие)")]
+        [SerializeField] private AudioClip ricochetSound;
+        [Tooltip("Громкость звука попадания/рикошета")]
+        [SerializeField] [Range(0f, 1f)] private float impactSfxVolume = 1f;
+        [Tooltip("Смещение эффекта от поверхности наружу, чтобы не клипался внутри коллайдера")]
+        [SerializeField] private float impactSurfaceOffset = 0.02f;
+
         private Rigidbody rb;
         private Collider bulletCollider;
         private TankWeapon ownerWeapon;
         private GameObject impactEffect;
+        private float impactVfxScale = 1f;
         private float lifetime;
         private float runtimeDamage;
         private float spawnTime;
         private bool isActive;
         private BulletTracer tracer;
+        private Vector3 previousPosition;
 
         public float Damage => runtimeDamage > 0f ? runtimeDamage : damage;
         public float TimeAlive => Time.time - spawnTime;
@@ -89,14 +101,16 @@ namespace TankGame.Weapons
         /// <summary>
         /// Инициализация пули (вызывается при получении из пула)
         /// </summary>
-        public void Initialize(TankWeapon weapon, GameObject impact, float life, float weaponDamage)
+        public void Initialize(TankWeapon weapon, GameObject impact, float life, float weaponDamage, float impactScale = 1f)
         {
             ownerWeapon = weapon;
             impactEffect = impact;
             lifetime = life;
             runtimeDamage = Mathf.Max(0f, weaponDamage);
+            impactVfxScale = Mathf.Max(0.01f, impactScale);
             spawnTime = Time.time;
             isActive = true;
+            previousPosition = transform.position;
         }
 
         private void Update()
@@ -109,6 +123,15 @@ namespace TankGame.Weapons
             {
                 ReturnToPool();
             }
+        }
+
+        private void FixedUpdate()
+        {
+            if (!isActive)
+                return;
+
+            // Сохраняем позицию до физики — для точного определения точки входа при OnTriggerEnter.
+            previousPosition = transform.position;
         }
 
         private void OnCollisionEnter(Collision collision)
@@ -125,6 +148,8 @@ namespace TankGame.Weapons
                 return;
             }
 
+            isActive = false;
+
             // ИСПРАВЛЕНО: Проверяем что есть контакты перед доступом
             if (collision.contacts.Length == 0)
             {
@@ -135,7 +160,11 @@ namespace TankGame.Weapons
 
             // Получаем точку и нормаль столкновения
             ContactPoint contact = collision.contacts[0];
-            HandleImpact(contact.point, contact.normal, collision.gameObject);
+            Vector3 vel = rb != null ? rb.linearVelocity.normalized : transform.forward;
+            Vector3 n = contact.normal;
+            if (Vector3.Dot(n, vel) > 0f)
+                n = -vel;
+            HandleImpact(contact.point, n, collision.gameObject);
         }
 
         private void OnTriggerEnter(Collider other)
@@ -148,26 +177,30 @@ namespace TankGame.Weapons
             if (ownerCheck != null && ownerCheck == ownerWeapon)
                 return;
 
-            Vector3 hitPoint = other.ClosestPoint(transform.position);
-            Vector3 velocity = rb != null ? rb.linearVelocity : Vector3.zero;
-            Vector3 hitNormal = velocity.sqrMagnitude > 0.0001f ? -velocity.normalized : -transform.forward;
+            isActive = false;
+
+            ResolveTriggerImpact(other, out Vector3 hitPoint, out Vector3 hitNormal);
 
             HandleImpact(hitPoint, hitNormal, other.gameObject);
         }
 
         private void HandleImpact(Vector3 hitPoint, Vector3 hitNormal, GameObject hitObject)
         {
+            bool wasPreciseHit = false;
+
             // Проверяем есть ли у объекта компонент получения урона
             IDamageable damageable = hitObject.GetComponent<IDamageable>();
             if (damageable != null && damageable.IsAlive())
             {
                 // Вычисляем финальный урон с учетом пробития
-                float finalDamage = CalculateDamageWithPenetration();
+                float finalDamage = CalculateDamageWithPenetration(out bool penetrated);
                 damageable.TakeDamage(finalDamage, hitPoint, hitNormal);
+                wasPreciseHit = penetrated;
             }
 
             // Эффект попадания
             PlayImpactEffect(hitPoint, hitNormal);
+            PlayImpactSound(hitPoint, wasPreciseHit);
 
             // Возвращаем в пул
             ReturnToPool();
@@ -176,7 +209,7 @@ namespace TankGame.Weapons
         /// <summary>
         /// Вычисляет финальный урон с учетом шанса пробития
         /// </summary>
-        private float CalculateDamageWithPenetration()
+        private float CalculateDamageWithPenetration(out bool penetrated)
         {
             // Проверяем шанс пробития (0-100%)
             float randomValue = Random.Range(0f, 100f);
@@ -185,6 +218,7 @@ namespace TankGame.Weapons
             {
                 // Пробитие успешно - полный урон
                 float fullDamage = Damage;
+                penetrated = true;
                 Debug.Log($"[Bullet] Penetration SUCCESS! Full damage: {fullDamage}");
                 return fullDamage;
             }
@@ -192,9 +226,19 @@ namespace TankGame.Weapons
             {
                 // Пробитие не удалось - урон уменьшается
                 float reducedDamage = Damage * nonPenetrationDamageMultiplier;
+                penetrated = false;
                 Debug.Log($"[Bullet] Penetration FAILED! Reduced damage: {reducedDamage} (from {Damage}, multiplier: {nonPenetrationDamageMultiplier})");
                 return reducedDamage;
             }
+        }
+
+        private void PlayImpactSound(Vector3 hitPoint, bool wasPreciseHit)
+        {
+            AudioClip clipToPlay = wasPreciseHit ? preciseHitSound : ricochetSound;
+            if (clipToPlay == null)
+                return;
+
+            AudioSource.PlayClipAtPoint(clipToPlay, hitPoint, impactSfxVolume);
         }
 
         private void PlayImpactEffect(Vector3 position, Vector3 normal)
@@ -202,29 +246,37 @@ namespace TankGame.Weapons
             if (impactEffect == null)
                 return;
 
-            // Создаем эффект с правильной ориентацией
-            Quaternion rotation = Quaternion.LookRotation(normal);
-            GameObject vfx = Instantiate(impactEffect, position, rotation);
+            Vector3 safeNormal = normal.sqrMagnitude > 0.0001f ? normal.normalized : Vector3.up;
+            Vector3 spawnPosition = position + safeNormal * Mathf.Max(0f, impactSurfaceOffset);
 
-            // Автоматическое уничтожение
-            ParticleSystem ps = vfx.GetComponent<ParticleSystem>();
-            if (ps != null)
+            // Создаем эффект с правильной ориентацией
+            Quaternion rotation = Quaternion.LookRotation(safeNormal);
+            GameObject vfx = Instantiate(impactEffect, spawnPosition, rotation);
+
+            // Масштаб эффекта (задаётся оружием: пушка — крупнее, пулемёт — меньше)
+            vfx.transform.localScale *= impactVfxScale;
+
+            // Запуск и автоуничтожение
+            ParticleSystem[] particleSystems = vfx.GetComponentsInChildren<ParticleSystem>(true);
+            float maxLifetime = 0f;
+            if (particleSystems.Length > 0)
             {
-                if (!ps.main.loop)
+                for (int i = 0; i < particleSystems.Length; i++)
                 {
-                    float duration = ps.main.duration + ps.main.startLifetime.constantMax;
-                    Destroy(vfx, duration);
-                }
-                else
-                {
-                    ps.Stop();
-                    Destroy(vfx, 2f);
+                    ParticleSystem ps = particleSystems[i];
+                    if (ps != null)
+                    {
+                        ps.Play(true);
+                        float d = ps.main.duration;
+                        if (ps.main.startLifetime.mode == ParticleSystemCurveMode.Constant)
+                            d += ps.main.startLifetime.constant;
+                        else
+                            d += ps.main.startLifetime.constantMax;
+                        if (d > maxLifetime) maxLifetime = d;
+                    }
                 }
             }
-            else
-            {
-                Destroy(vfx, 2f);
-            }
+            Destroy(vfx, maxLifetime > 0f ? maxLifetime : 2f);
         }
 
         private void ReturnToPool()
@@ -251,6 +303,7 @@ namespace TankGame.Weapons
         {
             spawnTime = Time.time;
             isActive = true;
+            previousPosition = transform.position;
 
             // Сброс физики
             if (rb != null)
@@ -300,6 +353,90 @@ namespace TankGame.Weapons
             }
             
             Debug.Log($"[Bullet] Returned to pool: {gameObject.name}");
+        }
+
+        private void ResolveTriggerImpact(Collider other, out Vector3 hitPoint, out Vector3 hitNormal)
+        {
+            Vector3 currentPosition = transform.position;
+            Vector3 velocity = rb != null ? rb.linearVelocity : Vector3.zero;
+            Vector3 velocityDir = velocity.sqrMagnitude > 0.0001f ? velocity.normalized : transform.forward;
+
+            // Старт луча — гарантированно перед поверхностью (расширяем назад по траектории).
+            Vector3 rayOrigin = previousPosition - velocityDir * 5f;
+            Vector3 rayEnd = currentPosition + velocityDir * 2f;
+            Vector3 rayDir = (rayEnd - rayOrigin).normalized;
+            float rayLen = Vector3.Distance(rayOrigin, rayEnd);
+
+            if (rayLen > 0.001f)
+            {
+                // Physics.RaycastAll — все пересечения по пути, первый hit = точка входа (передняя сторона).
+                RaycastHit[] hits = Physics.RaycastAll(rayOrigin, rayDir, rayLen, -1, QueryTriggerInteraction.Collide);
+                float bestDist = float.MaxValue;
+                RaycastHit? bestHit = null;
+
+                for (int i = 0; i < hits.Length; i++)
+                {
+                    if (hits[i].collider == bulletCollider || hits[i].collider.transform.IsChildOf(transform))
+                        continue;
+                    if (hits[i].collider != other)
+                        continue;
+                    if (hits[i].distance < bestDist)
+                    {
+                        bestDist = hits[i].distance;
+                        bestHit = hits[i];
+                    }
+                }
+
+                if (bestHit.HasValue)
+                {
+                    RaycastHit h = bestHit.Value;
+                    hitPoint = h.point;
+                    hitNormal = h.normal;
+                    if (Vector3.Dot(hitNormal, velocityDir) > 0f)
+                        hitNormal = -velocityDir;
+                    return;
+                }
+
+                // Fallback: Collider.Raycast по тому же лучу.
+                Ray ray = new Ray(rayOrigin, rayDir);
+                if (other.Raycast(ray, out RaycastHit hit, rayLen))
+                {
+                    hitPoint = hit.point;
+                    hitNormal = Vector3.Dot(hit.normal, velocityDir) > 0f ? -velocityDir : hit.normal;
+                    return;
+                }
+            }
+
+            // Если пуля оказалась внутри геометрии, пытаемся вычислить минимальный вектор выталкивания.
+            if (bulletCollider != null &&
+                Physics.ComputePenetration(
+                    bulletCollider, currentPosition, transform.rotation,
+                    other, other.transform.position, other.transform.rotation,
+                    out Vector3 separationDirection, out float separationDistance))
+            {
+                Vector3 separationNormal = separationDirection.sqrMagnitude > 0.0001f
+                    ? separationDirection.normalized
+                    : -velocityDir;
+
+                // Вектор выталкивания должен смотреть против движения пули (передняя сторона).
+                if (Vector3.Dot(separationNormal, velocityDir) > 0f)
+                    separationNormal = -separationNormal;
+
+                hitNormal = separationNormal;
+                hitPoint = currentPosition + separationNormal * (separationDistance + impactSurfaceOffset);
+                return;
+            }
+
+            // Fallback: берем ближайшую точку и нормаль против скорости.
+            Vector3 fallbackPoint = other.ClosestPoint(currentPosition);
+            Vector3 fallbackNormal = velocity.sqrMagnitude > 0.0001f ? -velocity.normalized : -transform.forward;
+
+            // Если ClosestPoint вернул позицию внутри/в центре, немного выносим точку назад по траектории.
+            if ((fallbackPoint - currentPosition).sqrMagnitude < 0.0001f)
+                fallbackPoint = currentPosition - fallbackNormal * 0.05f;
+
+            hitPoint = fallbackPoint;
+            hitNormal = fallbackNormal;
         }
 
         #endregion

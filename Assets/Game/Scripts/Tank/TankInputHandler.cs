@@ -40,16 +40,10 @@ namespace TankGame.Tank
             float vertical = Input.GetAxis("Vertical");
             float horizontal = Input.GetAxis("Horizontal");
 
-            // Обработка прицеливания
-            if (Input.GetMouseButtonDown(1))
-            {
-                isAiming = true;
-            }
-
-            if (Input.GetMouseButtonUp(1))
-            {
-                isAiming = false;
-            }
+            // Прицеливание активно только при зажатой ПКМ.
+            bool rightMouseHeld = Input.GetMouseButton(1);
+            bool leftMouseHeld = Input.GetMouseButton(0);
+            isAiming = rightMouseHeld;
 
             // Расчет дельты мыши
             // Используем Input.GetAxis для работы с заблокированным курсором
@@ -63,10 +57,11 @@ namespace TankGame.Tank
                 );
             }
 
+            // Стрельба разрешена только в режиме прицеливания (ПКМ зажата).
             bool isFiringPressed = isAiming && Input.GetMouseButtonDown(0);
-            bool isFiringHeld = isAiming && Input.GetMouseButton(0);
+            bool isFiringHeld = isAiming && leftMouseHeld;
             bool isFiringReleased = isAiming && Input.GetMouseButtonUp(0);
-            bool isFiring = isFiringPressed;
+            bool isFiring = isFiringPressed || isFiringHeld;
             bool isReloadRequested = Input.GetKeyDown(KeyCode.R);
             bool isBoosting = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             int weaponSlot = 0;

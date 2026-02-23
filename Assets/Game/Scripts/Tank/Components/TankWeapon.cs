@@ -50,12 +50,38 @@ namespace TankGame.Tank.Components
         [SerializeField] private GameObject muzzleVFX;
         [Tooltip("Эффект попадания пули")]
         [SerializeField] private GameObject impactVFX;
+        [Tooltip("Множитель масштаба эффекта попадания (для пушки можно 2–4)")]
+        [SerializeField] private float impactVfxScaleMultiplier = 1f;
+        [Tooltip("Множитель масштаба дульной вспышки")]
+        [SerializeField] private float muzzleVfxScaleMultiplier = 1f;
+        [Tooltip("Учитывать масштаб MuzzleVFXPoint при спавне эффекта")]
+        [SerializeField] private bool inheritMuzzlePointScale = false;
 
         [Header("Animation")]
         [Tooltip("Animator пушки/ствола для анимации выстрела")]
         [SerializeField] private Animator weaponAnimator;
         [Tooltip("Название Trigger-параметра в Animator для выстрела")]
         [SerializeField] private string fireAnimationTrigger = "Fire";
+        [Tooltip("Animator ленты патронов для анимации при выстреле")]
+        [SerializeField] private Animator ammoBeltAnimator;
+        [Tooltip("Название Trigger-параметра в Animator ленты патронов")]
+        [SerializeField] private string ammoBeltFireAnimationTrigger = "Fire";
+        [Tooltip("Запускать анимацию ленты при выстреле этого оружия")]
+        [SerializeField] private bool playAmmoBeltAnimationOnFire = true;
+
+        [Header("Audio")]
+        [Tooltip("Источник звука для этого оружия (если не назначен, будет найден автоматически)")]
+        [SerializeField] private AudioSource weaponAudioSource;
+        [Tooltip("Звук выстрела этого оружия (для пушки и пулемета назначаются разные клипы)")]
+        [SerializeField] private AudioClip fireSound;
+        [Tooltip("Звук перезарядки этого оружия")]
+        [SerializeField] private AudioClip reloadSound;
+        [Tooltip("Звук попытки выстрела при пустом магазине")]
+        [SerializeField] private AudioClip emptyShotSound;
+        [Tooltip("Громкость звуков оружия")]
+        [SerializeField] [Range(0f, 1f)] private float weaponSfxVolume = 1f;
+        [Tooltip("Минимальная пауза между dry-fire звуками (секунды)")]
+        [SerializeField] private float emptyShotSoundCooldown = 0.2f;
         
         [Header("Debug")]
         [Tooltip("Показывать debug ray направления выстрела")]
@@ -75,6 +101,8 @@ namespace TankGame.Tank.Components
         private TankTurret tankTurret; // Для проверки выравнивания башни
         private Coroutine reloadCoroutine;
         private int fireAnimationTriggerHash;
+        private int ammoBeltFireAnimationTriggerHash;
+        private float lastEmptyShotSoundTime = -999f;
         private bool hasExternalAimPoint;
         private Vector3 externalAimPoint;
 
@@ -173,9 +201,20 @@ namespace TankGame.Tank.Components
                     ?? GetComponentInChildren<Animator>();
             }
 
+            if (weaponAudioSource == null)
+            {
+                weaponAudioSource = GetComponent<AudioSource>()
+                    ?? GetComponentInParent<AudioSource>()
+                    ?? GetComponentInChildren<AudioSource>();
+            }
+
             fireAnimationTriggerHash = string.IsNullOrWhiteSpace(fireAnimationTrigger)
                 ? 0
                 : Animator.StringToHash(fireAnimationTrigger);
+
+            ammoBeltFireAnimationTriggerHash = string.IsNullOrWhiteSpace(ammoBeltFireAnimationTrigger)
+                ? 0
+                : Animator.StringToHash(ammoBeltFireAnimationTrigger);
         }
 
         /// <summary>
@@ -256,7 +295,7 @@ namespace TankGame.Tank.Components
             );
 
             // Инициализируем пулю
-            bullet.Initialize(this, impactVFX, bulletLifetime, bulletDamage);
+            bullet.Initialize(this, impactVFX, bulletLifetime, bulletDamage, impactVfxScaleMultiplier);
 
             // Применяем физику
             Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
@@ -268,6 +307,8 @@ namespace TankGame.Tank.Components
             
             PlayMuzzleVFX();
             PlayFireAnimation();
+            PlayAmmoBeltAnimation();
+            PlayFireSound();
             DrawDebugRay(firePoint.position, direction);
 
             lastFireTime = Time.time;
@@ -373,6 +414,7 @@ namespace TankGame.Tank.Components
             if (reserveAmmo <= 0)
                 return false;
 
+            PlayReloadSound();
             reloadCoroutine = StartCoroutine(ReloadRoutine());
             return true;
         }
@@ -405,18 +447,41 @@ namespace TankGame.Tank.Components
             if (effectPoint == null)
                 return;
 
-            GameObject vfx = Instantiate(muzzleVFX, effectPoint.position, effectPoint.rotation, effectPoint);
-            ParticleSystem ps = vfx.GetComponent<ParticleSystem>();
+            // Не делаем дочерним объектом muzzle point: так эффект не зависит от скейла/иерархии ствола.
+            GameObject vfx = Instantiate(muzzleVFX, effectPoint.position, effectPoint.rotation);
 
-            if (ps != null && !ps.main.loop)
+            // Явный контроль масштаба эффекта, чтобы исключить неожиданные изменения размера из иерархии.
+            Vector3 baseScale = muzzleVFX.transform.localScale;
+            Vector3 scaled = baseScale * Mathf.Max(0.01f, muzzleVfxScaleMultiplier);
+            if (inheritMuzzlePointScale)
+                scaled = Vector3.Scale(scaled, effectPoint.lossyScale);
+            vfx.transform.localScale = scaled;
+
+            ParticleSystem[] particleSystems = vfx.GetComponentsInChildren<ParticleSystem>(true);
+
+            float maxLifetime = 0f;
+            if (particleSystems.Length > 0)
             {
-                float duration = ps.main.duration + ps.main.startLifetime.constantMax;
-                Destroy(vfx, duration);
+                for (int i = 0; i < particleSystems.Length; i++)
+                {
+                    ParticleSystem ps = particleSystems[i];
+                    if (ps == null)
+                        continue;
+
+                    ps.Play(true);
+
+                    float duration = ps.main.duration;
+                    if (ps.main.startLifetime.mode == ParticleSystemCurveMode.Constant)
+                        duration += ps.main.startLifetime.constant;
+                    else
+                        duration += ps.main.startLifetime.constantMax;
+
+                    if (duration > maxLifetime)
+                        maxLifetime = duration;
+                }
             }
-            else
-            {
-                Destroy(vfx, 2f); // Fallback
-            }
+
+            Destroy(vfx, maxLifetime > 0f ? maxLifetime : 2f); // Fallback
             
         }
 
@@ -428,6 +493,49 @@ namespace TankGame.Tank.Components
             // Reset перед SetTrigger помогает корректно перезапускать анимацию при частой стрельбе.
             weaponAnimator.ResetTrigger(fireAnimationTriggerHash);
             weaponAnimator.SetTrigger(fireAnimationTriggerHash);
+        }
+
+        private void PlayAmmoBeltAnimation()
+        {
+            if (!playAmmoBeltAnimationOnFire || ammoBeltAnimator == null || ammoBeltFireAnimationTriggerHash == 0)
+                return;
+
+            // Та же логика перезапуска, что и у анимации ствола.
+            ammoBeltAnimator.ResetTrigger(ammoBeltFireAnimationTriggerHash);
+            ammoBeltAnimator.SetTrigger(ammoBeltFireAnimationTriggerHash);
+        }
+
+        public void SetAmmoBeltAnimationOnFire(bool enabled)
+        {
+            playAmmoBeltAnimationOnFire = enabled;
+        }
+
+        private void PlayFireSound()
+        {
+            if (weaponAudioSource == null || fireSound == null)
+                return;
+
+            weaponAudioSource.PlayOneShot(fireSound, weaponSfxVolume);
+        }
+
+        private void PlayReloadSound()
+        {
+            if (weaponAudioSource == null || reloadSound == null)
+                return;
+
+            weaponAudioSource.PlayOneShot(reloadSound, weaponSfxVolume);
+        }
+
+        public void TryPlayEmptyShotSound()
+        {
+            if (weaponAudioSource == null || emptyShotSound == null)
+                return;
+
+            if (Time.time - lastEmptyShotSoundTime < emptyShotSoundCooldown)
+                return;
+
+            lastEmptyShotSoundTime = Time.time;
+            weaponAudioSource.PlayOneShot(emptyShotSound, weaponSfxVolume);
         }
 
         public void SetExternalAimPoint(Vector3 worldPoint)
