@@ -162,7 +162,7 @@ MonoBehaviour:
   preciseHitSound: {fileID: 8300000, guid: 01612480c1ef7ab42af2c9ae75af6b11, type: 3}
   ricochetSound: {fileID: 8300000, guid: e8210ab1fe6784e7eb15956b135716c9, type: 3}
   impactSfxVolume: 1
-  impactSurfaceOffset: 0.2
+  impactSurfaceOffset: 0.02
 --- !u!96 &1133767183981751439
 TrailRenderer:
   serializedVersion: 3
@@ -290,7 +290,7 @@ MonoBehaviour:
   fadeTime: 0.2
   startColor: {r: 0.5943396, g: 0.18834145, b: 0.008410451, a: 1}
   endColor: {r: 1, g: 0.43237165, b: 0, a: 0.5}
-  useAdvancedShader: 1
+  useAdvancedShader: 0
   customTracerMaterial: {fileID: 2100000, guid: 75100224ce441f74991c4beda86e7615,
     type: 2}
 --- !u!82 &5691098280569143123
@@ -305,7 +305,7 @@ AudioSource:
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 0}
-  m_PlayOnAwake: 1
+  m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1
   Loop: 0

@@ -44,9 +44,18 @@ namespace TankGame.Weapons
         private GameObject impactEffect;
         private float impactVfxScale = 1f;
         private float lifetime;
+        private float ricochetChance;
+        private float ricochetChancePerSpread;
+        private float lastSpread;
+        private GameObject ricochetEffect;
+        private AudioClip ricochetBounceSound;
+        private float ricochetAngleMin;
+        private float ricochetAngleMax;
+        private bool hasRicocheted;
         private float runtimeDamage;
         private float spawnTime;
         private bool isActive;
+        private bool hasImpacted;
         private BulletTracer tracer;
         private Vector3 previousPosition;
 
@@ -101,15 +110,26 @@ namespace TankGame.Weapons
         /// <summary>
         /// Инициализация пули (вызывается при получении из пула)
         /// </summary>
-        public void Initialize(TankWeapon weapon, GameObject impact, float life, float weaponDamage, float impactScale = 1f)
+        public void Initialize(TankWeapon weapon, GameObject impact, float life, float weaponDamage, float impactScale = 1f,
+            float ricochetCh = 0f, float ricochetChPerSpread = 0f, float spread = 0f, GameObject ricochetVfx = null,
+            AudioClip ricochetSnd = null, float ricochetAngMin = 15f, float ricochetAngMax = 80f)
         {
             ownerWeapon = weapon;
             impactEffect = impact;
             lifetime = life;
             runtimeDamage = Mathf.Max(0f, weaponDamage);
             impactVfxScale = Mathf.Max(0.01f, impactScale);
+            ricochetChance = ricochetCh;
+            ricochetChancePerSpread = ricochetChPerSpread;
+            lastSpread = spread;
+            ricochetEffect = ricochetVfx;
+            ricochetBounceSound = ricochetSnd;
+            ricochetAngleMin = ricochetAngMin;
+            ricochetAngleMax = ricochetAngMax;
+            hasRicocheted = false;
             spawnTime = Time.time;
             isActive = true;
+            hasImpacted = false;
             previousPosition = transform.position;
         }
 
@@ -148,7 +168,9 @@ namespace TankGame.Weapons
                 return;
             }
 
-            isActive = false;
+            if (hasImpacted)
+                return;
+            hasImpacted = true;
 
             // ИСПРАВЛЕНО: Проверяем что есть контакты перед доступом
             if (collision.contacts.Length == 0)
@@ -171,13 +193,15 @@ namespace TankGame.Weapons
         {
             if (!isActive || other == null)
                 return;
+            if (hasImpacted)
+                return;
 
             // Ignore owner tank colliders.
             TankWeapon ownerCheck = other.GetComponentInParent<TankWeapon>();
             if (ownerCheck != null && ownerCheck == ownerWeapon)
                 return;
 
-            isActive = false;
+            hasImpacted = true;
 
             ResolveTriggerImpact(other, out Vector3 hitPoint, out Vector3 hitNormal);
 
@@ -186,24 +210,101 @@ namespace TankGame.Weapons
 
         private void HandleImpact(Vector3 hitPoint, Vector3 hitNormal, GameObject hitObject)
         {
+            if (hasRicocheted)
+            {
+                DoNormalImpact(hitPoint, hitNormal, hitObject);
+                return;
+            }
+
+            float chance = ricochetChance + lastSpread * ricochetChancePerSpread;
+            if (ricochetEffect != null && ricochetBounceSound != null && Random.value < Mathf.Clamp01(chance))
+            {
+                DoRicochet(hitPoint, hitNormal);
+                return;
+            }
+
+            DoNormalImpact(hitPoint, hitNormal, hitObject);
+        }
+
+        private void DoRicochet(Vector3 hitPoint, Vector3 hitNormal)
+        {
+            PlayRicochetEffect(hitPoint, hitNormal);
+            PlayRicochetSound(hitPoint);
+
+            Vector3 vel = rb != null ? rb.linearVelocity : Vector3.zero;
+            if (vel.sqrMagnitude < 0.0001f)
+            {
+                ReturnToPool();
+                return;
+            }
+
+            Vector3 dir = vel.normalized;
+            Vector3 reflected = Vector3.Reflect(dir, hitNormal.normalized);
+            float angleY = Random.Range(ricochetAngleMin, ricochetAngleMax) * (Random.value > 0.5f ? 1f : -1f);
+            Vector3 newDir = Quaternion.Euler(0f, angleY, 0f) * reflected;
+            newDir.y = 0f;
+            if (newDir.sqrMagnitude < 0.0001f)
+                newDir = reflected;
+
+            newDir.Normalize();
+            float speed = vel.magnitude;
+
+            transform.position = hitPoint + newDir * 0.15f;
+            previousPosition = transform.position;
+            if (rb != null)
+                rb.linearVelocity = newDir * speed;
+
+            hasRicocheted = true;
+            hasImpacted = false;
+        }
+
+        private void DoNormalImpact(Vector3 hitPoint, Vector3 hitNormal, GameObject hitObject)
+        {
             bool wasPreciseHit = false;
 
-            // Проверяем есть ли у объекта компонент получения урона
             IDamageable damageable = hitObject.GetComponent<IDamageable>();
             if (damageable != null && damageable.IsAlive())
             {
-                // Вычисляем финальный урон с учетом пробития
                 float finalDamage = CalculateDamageWithPenetration(out bool penetrated);
                 damageable.TakeDamage(finalDamage, hitPoint, hitNormal);
                 wasPreciseHit = penetrated;
             }
 
-            // Эффект попадания
             PlayImpactEffect(hitPoint, hitNormal);
             PlayImpactSound(hitPoint, wasPreciseHit);
 
-            // Возвращаем в пул
             ReturnToPool();
+        }
+
+        private void PlayRicochetEffect(Vector3 position, Vector3 normal)
+        {
+            if (ricochetEffect == null)
+                return;
+
+            Vector3 safeNormal = normal.sqrMagnitude > 0.0001f ? normal.normalized : Vector3.up;
+            Vector3 spawnPosition = position + safeNormal * Mathf.Max(0f, impactSurfaceOffset);
+            Quaternion rotation = Quaternion.LookRotation(safeNormal);
+            GameObject vfx = Instantiate(ricochetEffect, spawnPosition, rotation);
+
+            Vector3 prefabScale = ricochetEffect.transform.localScale;
+            float minComponent = Mathf.Min(prefabScale.x, prefabScale.y, prefabScale.z);
+            Vector3 baseScale = minComponent < 0.01f ? Vector3.one : prefabScale;
+            vfx.transform.localScale = baseScale * impactVfxScale;
+
+            ParticleSystem[] ps = vfx.GetComponentsInChildren<ParticleSystem>(true);
+            float maxLifetime = 0f;
+            foreach (ParticleSystem p in ps)
+            {
+                if (p != null) { p.Play(true); maxLifetime = Mathf.Max(maxLifetime, p.main.duration + (p.main.startLifetime.mode == ParticleSystemCurveMode.Constant ? p.main.startLifetime.constant : p.main.startLifetime.constantMax)); }
+            }
+            Destroy(vfx, maxLifetime > 0f ? maxLifetime : 2f);
+        }
+
+        private void PlayRicochetSound(Vector3 hitPoint)
+        {
+            if (ricochetBounceSound == null)
+                return;
+            AudioSource.PlayClipAtPoint(ricochetBounceSound, hitPoint, impactSfxVolume);
         }
         
         /// <summary>
@@ -303,6 +404,8 @@ namespace TankGame.Weapons
         {
             spawnTime = Time.time;
             isActive = true;
+            hasImpacted = false;
+            hasRicocheted = false;
             previousPosition = transform.position;
 
             // Сброс физики

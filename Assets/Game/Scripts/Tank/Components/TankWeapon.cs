@@ -52,6 +52,19 @@ namespace TankGame.Tank.Components
         [SerializeField] private GameObject impactVFX;
         [Tooltip("Множитель масштаба эффекта попадания (для пушки можно 2–4)")]
         [SerializeField] private float impactVfxScaleMultiplier = 1f;
+        [Header("Ricochet")]
+        [Tooltip("Базовый шанс рикошета (0–1)")]
+        [SerializeField] [Range(0f, 1f)] private float ricochetChance = 0.08f;
+        [Tooltip("Дополнительный шанс от разброса (градус → +шанс)")]
+        [SerializeField] private float ricochetChancePerSpreadDegree = 0.005f;
+        [Tooltip("Эффект рикошета (искры)")]
+        [SerializeField] private GameObject ricochetVFX;
+        [Tooltip("Звук рикошета")]
+        [SerializeField] private AudioClip ricochetSound;
+        [Tooltip("Мин. угол отклонения траектории при рикошете (град)")]
+        [SerializeField] private float ricochetAngleMin = 15f;
+        [Tooltip("Макс. угол отклонения траектории при рикошете (град)")]
+        [SerializeField] private float ricochetAngleMax = 80f;
         [Tooltip("Множитель масштаба дульной вспышки")]
         [SerializeField] private float muzzleVfxScaleMultiplier = 1f;
         [Tooltip("Учитывать масштаб MuzzleVFXPoint при спавне эффекта")]
@@ -295,7 +308,9 @@ namespace TankGame.Tank.Components
             );
 
             // Инициализируем пулю
-            bullet.Initialize(this, impactVFX, bulletLifetime, bulletDamage, impactVfxScaleMultiplier);
+            bullet.Initialize(this, impactVFX, bulletLifetime, bulletDamage, impactVfxScaleMultiplier,
+                ricochetChance, ricochetChancePerSpreadDegree, spread, ricochetVFX, ricochetSound,
+                ricochetAngleMin, ricochetAngleMax);
 
             // Применяем физику
             Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
