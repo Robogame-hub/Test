@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 6a0c1c0b822beb3429a8689dad2a7292
+guid: 5141efb7b1329404c8d351617b3dca76
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
@@ -7,8 +7,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Material.001
-    second: {fileID: 2100000, guid: 56202d47cc0a21c42bfb3788e64a9588, type: 2}
+      name: DesertVillage
+    second: {fileID: 2100000, guid: a0e3f68cf4fd286498a4699b05888efa, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -35,10 +35,10 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 1
+    isReadable: 0
   meshes:
     lODScreenPercentages: []
-    globalScale: 1
+    globalScale: 1.8
     meshCompression: 0
     addColliders: 0
     useSRGBMaterialColor: 1
@@ -96,7 +96,7 @@ ModelImporter:
     armStretch: 0.05
     legStretch: 0.05
     feetSpacing: 0
-    globalScale: 1
+    globalScale: 0.018
     rootMotionBoneName: 
     hasTranslationDoF: 0
     hasExtraRoot: 0
