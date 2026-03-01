@@ -13,6 +13,8 @@ namespace TankGame.Game
         [Header("Spawn Points")]
         [Tooltip("Массив всех спавн-поинтов в сцене")]
         [SerializeField] private SpawnPoint[] spawnPoints = new SpawnPoint[6];
+        [Tooltip("Индекс спавн-поинта для игрока (респавн всегда здесь). -1 = случайный")]
+        [SerializeField] private int playerSpawnPointIndex = 0;
         
         [Header("Settings")]
         [Tooltip("Префаб танка для спавна (если нужно спавнить автоматически)")]
@@ -97,21 +99,54 @@ namespace TankGame.Game
         }
         
         /// <summary>
-        /// Получить случайный спавн-поинт (для локального спавна)
+        /// Все спавн-поинты (для BotPoolManager и др.)
+        /// </summary>
+        public SpawnPoint[] GetAllSpawnPoints()
+        {
+            return spawnPoints;
+        }
+        
+        /// <summary>
+        /// Получить спавн-поинт игрока (для респавна)
+        /// </summary>
+        public SpawnPoint GetPlayerSpawnPoint()
+        {
+            if (spawnPoints == null || spawnPoints.Length == 0)
+                return null;
+            if (playerSpawnPointIndex < 0)
+                return GetRandomSpawnPoint();
+            for (int i = 0; i < spawnPoints.Length; i++)
+            {
+                if (spawnPoints[i] != null && spawnPoints[i].SpawnPointIndex == playerSpawnPointIndex)
+                    return spawnPoints[i];
+            }
+            return spawnPoints[0];
+        }
+        
+        /// <summary>
+        /// Получить случайный спавн-поинт (без проверки занятости)
         /// </summary>
         public SpawnPoint GetRandomSpawnPoint()
         {
             if (spawnPoints == null || spawnPoints.Length == 0)
                 return null;
-            
-            // Выбираем случайный спавн-поинт
             var availablePoints = spawnPoints.Where(sp => sp != null).ToArray();
             if (availablePoints.Length == 0)
                 return null;
-            
-            var randomPoint = availablePoints[Random.Range(0, availablePoints.Length)];
-            Debug.Log($"[SpawnManager] Selected random spawn point: {randomPoint.SpawnPointIndex}");
-            return randomPoint;
+            return availablePoints[Random.Range(0, availablePoints.Length)];
+        }
+        
+        /// <summary>
+        /// Получить случайный свободный спавн-поинт (бот не может спавниться в занятую точку).
+        /// </summary>
+        public SpawnPoint GetRandomFreeSpawnPoint()
+        {
+            if (spawnPoints == null || spawnPoints.Length == 0)
+                return null;
+            var freePoints = spawnPoints.Where(sp => sp != null && !sp.IsOccupied).ToArray();
+            if (freePoints.Length == 0)
+                return null;
+            return freePoints[Random.Range(0, freePoints.Length)];
         }
         
         /// <summary>
@@ -119,12 +154,11 @@ namespace TankGame.Game
         /// </summary>
         public SpawnPoint GetFreeSpawnPoint()
         {
-            // В локальном режиме просто возвращаем случайный
-            return GetRandomSpawnPoint();
+            return GetRandomFreeSpawnPoint() ?? GetRandomSpawnPoint();
         }
         
         /// <summary>
-        /// Спавнит танк в свободном спавн-поинте
+        /// Спавнит танк: игрок — в указанном поинте, бот — в случайном.
         /// </summary>
         public SpawnPoint SpawnTank(TankController tank)
         {
@@ -134,7 +168,11 @@ namespace TankGame.Game
                 return null;
             }
             
-            SpawnPoint spawnPoint = GetFreeSpawnPoint();
+            SpawnPoint spawnPoint = tank.IsLocalPlayer ? GetPlayerSpawnPoint() : GetRandomFreeSpawnPoint();
+            if (spawnPoint == null)
+            {
+                spawnPoint = GetRandomFreeSpawnPoint() ?? GetRandomSpawnPoint();
+            }
             
             if (spawnPoint == null)
             {
@@ -142,12 +180,8 @@ namespace TankGame.Game
                 return null;
             }
             
-            // Сохраняем привязку танка к спавн-поинту
             playerSpawnPoints[tank] = spawnPoint;
-            
-            // Спавним танк
             spawnPoint.SpawnTank(tank);
-            
             return spawnPoint;
         }
         
@@ -183,27 +217,31 @@ namespace TankGame.Game
         }
         
         /// <summary>
-        /// Респавнит танк в его оригинальном спавн-поинте
+        /// Респавнит танк: игрок — в указанном спавн-поинте, бот — в случайном.
         /// </summary>
         public void RespawnTank(TankController tank)
         {
             if (tank == null)
                 return;
             
-            SpawnPoint spawnPoint = GetTankSpawnPoint(tank);
+            SpawnPoint spawnPoint;
+            if (tank.IsLocalPlayer)
+            {
+                spawnPoint = GetPlayerSpawnPoint();
+            }
+            else
+            {
+                spawnPoint = GetRandomFreeSpawnPoint();
+            }
             
             if (spawnPoint == null)
             {
-                // Если нет привязки, используем свободный поинт
-                spawnPoint = GetFreeSpawnPoint();
-                if (spawnPoint != null)
-                {
-                    playerSpawnPoints[tank] = spawnPoint;
-                }
+                spawnPoint = GetRandomFreeSpawnPoint() ?? GetRandomSpawnPoint();
             }
             
             if (spawnPoint != null)
             {
+                playerSpawnPoints[tank] = spawnPoint;
                 spawnPoint.SpawnTank(tank);
                 Debug.Log($"[SpawnManager] Tank {tank.name} respawned at point {spawnPoint.SpawnPointIndex}");
             }

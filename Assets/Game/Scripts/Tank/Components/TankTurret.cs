@@ -370,6 +370,18 @@ namespace TankGame.Tank.Components
         }
 
         // ─── Camera ───────────────────────────────────────────────────────────
+        /// <summary>
+        /// Мгновенно переносит камеру над танком (после респавна).
+        /// </summary>
+        public void SnapCameraToTank()
+        {
+            if (turretCamera == null || tankTransform == null) return;
+            cameraOffset = Vector3.zero;
+            Vector3 pos = tankTransform.position + Vector3.up * cameraHeight;
+            turretCamera.transform.position = pos;
+            turretCamera.transform.rotation = Quaternion.Euler(cameraPitchAngle, cameraYawRotation, 0f);
+        }
+
         private void UpdateCamera()
         {
             if (turretCamera == null || tankTransform == null) return;

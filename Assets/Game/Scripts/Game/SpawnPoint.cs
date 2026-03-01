@@ -40,22 +40,28 @@ namespace TankGame.Game
         }
         
         /// <summary>
-        /// Спавнит танк в этой точке
+        /// Спавнит танк в этой точке (корень иерархии + Rigidbody синхронизируются).
         /// </summary>
         public void SpawnTank(TankController tank)
         {
             if (tank == null)
                 return;
             
-            // Включаем танк (если был выключен)
             tank.gameObject.SetActive(true);
             
-            // Устанавливаем позицию и поворот
-            tank.transform.SetPositionAndRotation(Position, Rotation);
+            // Переносим корень танка, иначе при дочернем TankController позиция не обновится
+            Transform root = tank.transform.root;
+            root.SetPositionAndRotation(Position, Rotation);
+            Rigidbody rb = tank.GetComponentInChildren<Rigidbody>();
+            if (rb != null)
+            {
+                rb.position = Position;
+                rb.rotation = Rotation;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
             
-            // Активируем танк (включаем все компоненты)
             ActivateTank(tank);
-            
             SetOccupied(true, tank);
             
             Debug.Log($"[SpawnPoint] Tank {tank.name} spawned at point {spawnPointIndex}");

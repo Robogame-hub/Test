@@ -262,7 +262,7 @@ namespace TankGame.Weapons
         {
             bool wasPreciseHit = false;
 
-            IDamageable damageable = hitObject.GetComponent<IDamageable>();
+            IDamageable damageable = hitObject.GetComponentInParent<IDamageable>();
             if (damageable != null && damageable.IsAlive())
             {
                 float finalDamage = CalculateDamageWithPenetration(out bool penetrated);

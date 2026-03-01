@@ -1,10 +1,11 @@
 using UnityEngine;
+using TankGame.Tank;
 
 namespace TankGame.Tank.Components
 {
     /// <summary>
-    /// Компонент движения танка с реалистичной физикой
-    /// Отвечает за перемещение, выравнивание по поверхности и наклоны
+    /// Компонент движения танка с реалистичной физикой.
+    /// У игрока движение возможно только при заведённом двигателе; у ботов двигатель не проверяется.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class TankMovement : MonoBehaviour
@@ -100,7 +101,8 @@ namespace TankGame.Tank.Components
         [SerializeField] private bool showTargetAngles = true;
 
         private Rigidbody rb;
-        private TankEngine tankEngine;  // Для проверки работы двигателя
+        private TankEngine tankEngine;
+        private TankController tankController;
         private float currentYaw;
         private Vector3 currentVelocity;
         private Vector3 targetVelocity;
@@ -132,9 +134,8 @@ namespace TankGame.Tank.Components
         {
             currentYaw = transform.eulerAngles.y;
             currentStamina = maxStamina;
-            
             tankEngine = GetComponent<TankEngine>();
-            
+            tankController = GetComponent<TankController>();
             // Автоматически создаем точки если не назначены
             if (autoCreatePoints)
             {
@@ -254,14 +255,13 @@ namespace TankGame.Tank.Components
         /// </summary>
         public void ApplyMovement(float vertical, float horizontal, bool boostRequested = false)
         {
-            // ПРОВЕРКА: Двигатель должен быть запущен!
-            if (tankEngine != null && !tankEngine.IsEngineRunning)
+            // У игрока движение только при заведённом двигателе; у ботов двигатель не проверяем
+            bool isLocalPlayer = tankController == null || tankController.IsLocalPlayer;
+            if (isLocalPlayer && tankEngine != null && !tankEngine.IsEngineRunning)
             {
                 isBoosting = false;
                 rb.linearDamping = linearDrag;
                 rb.angularDamping = angularDrag;
-
-                // Двигатель выключен - не применяем ввод, но замедляемся
                 targetVelocity = Vector3.zero;
                 currentVelocity = Vector3.Lerp(
                     currentVelocity,
@@ -269,7 +269,7 @@ namespace TankGame.Tank.Components
                     deceleration * Time.fixedDeltaTime
                 );
                 rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
-                return;  // НЕ двигаемся!
+                return;
             }
 
             bool hasControlInput = Mathf.Abs(vertical) > 0.01f || Mathf.Abs(horizontal) > 0.01f;

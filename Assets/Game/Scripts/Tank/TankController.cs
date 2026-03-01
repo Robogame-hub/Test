@@ -92,6 +92,16 @@ namespace TankGame.Tank
             InitializeComponents();
         }
 
+        private void OnEnable()
+        {
+            TankRegistry.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            TankRegistry.Unregister(this);
+        }
+
         private void Start()
         {
             // Повторно применяем стартовый слот после инициализации всех компонентов.
@@ -357,6 +367,8 @@ namespace TankGame.Tank
 
         private void PlayWeaponSwitchSound()
         {
+            if (!isLocalPlayer)
+                return;
             if (weaponSwitchAudioSource == null || weaponSwitchSound == null)
                 return;
 
@@ -464,10 +476,6 @@ namespace TankGame.Tank
 
             if (weapon == null)
                 weapon = cannonWeapon != null ? cannonWeapon : machineGunWeapon;
-        }
-
-        private void OnDisable()
-        {
         }
 
         private void OnDestroy()

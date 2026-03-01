@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using TankGame.Core;
 using TankGame.Game;
+using TankGame.Tank.AI;
 
 namespace TankGame.Tank.Components
 {
@@ -53,7 +54,7 @@ namespace TankGame.Tank.Components
             OnRespawn ??= new UnityEvent();
 
             currentHealth = maxHealth;
-            tankController = GetComponent<TankController>();
+            tankController = GetComponentInParent<TankController>();
         }
 
         private void Update()
@@ -101,15 +102,16 @@ namespace TankGame.Tank.Components
             isAlive = false;
             deathTime = Time.time;
             
-            // Эффект взрыва
             PlayExplosionEffect();
-            
-            // Отключаем танк
             DisableTank();
             
-            // Запускаем респавн через respawnDelay секунд
-            Invoke(nameof(Respawn), respawnDelay);
+            // Бот: освобождаем спавн-поинт (респавн будет в случайном)
+            if (tankController != null && !tankController.IsLocalPlayer && SpawnManager.Instance != null)
+            {
+                SpawnManager.Instance.FreeSpawnPoint(tankController);
+            }
             
+            Invoke(nameof(Respawn), respawnDelay);
             OnDeath?.Invoke();
             
             Debug.Log($"[TankHealth] Tank {gameObject.name} destroyed! Respawn in {respawnDelay} seconds.");
@@ -140,31 +142,27 @@ namespace TankGame.Tank.Components
         }
         
         /// <summary>
-        /// Отключает танк при смерти
+        /// Отключает танк при смерти (полностью скрывает и отключает Gizmos).
+        /// Игрока сразу переносит в спавн-поинт, чтобы не рисовалось на месте смерти.
         /// </summary>
         private void DisableTank()
         {
             if (hideOnDeath)
             {
-                // Скрываем визуально
                 SetTankVisible(false);
             }
             else
             {
-                // Удаляем танк
                 Destroy(gameObject);
                 return;
             }
             
-            // Отключаем коллайдеры
-            Collider[] colliders = GetComponentsInChildren<Collider>();
+            Transform rootForRb = transform.root;
+            Collider[] colliders = rootForRb.GetComponentsInChildren<Collider>();
             foreach (var collider in colliders)
-            {
                 collider.enabled = false;
-            }
             
-            // Останавливаем физику
-            Rigidbody rb = GetComponent<Rigidbody>();
+            Rigidbody rb = rootForRb.GetComponentInChildren<Rigidbody>();
             if (rb != null)
             {
                 rb.linearVelocity = Vector3.zero;
@@ -172,10 +170,31 @@ namespace TankGame.Tank.Components
                 rb.isKinematic = true;
             }
             
-            // Отключаем компоненты управления
-            if (tankController != null)
+            // Отключаем компоненты на корне танка (Gizmos и управление)
+            Transform root = transform.root;
+            if (tankController != null) tankController.enabled = false;
+            var movement = root.GetComponent<TankMovement>();
+            if (movement != null) movement.enabled = false;
+            var turret = root.GetComponent<TankTurret>();
+            if (turret != null) turret.enabled = false;
+            var weapon = root.GetComponent<TankWeapon>();
+            if (weapon != null) weapon.enabled = false;
+            var ai = root.GetComponent<NavMeshTankAI>();
+            if (ai != null) ai.enabled = false;
+            
+            // Игрока сразу переносим в спавн-поинт (труп не остаётся на месте смерти)
+            if (tankController != null && tankController.IsLocalPlayer && SpawnManager.Instance != null)
             {
-                tankController.enabled = false;
+                var spawnPoint = SpawnManager.Instance.GetPlayerSpawnPoint();
+                if (spawnPoint != null)
+                {
+                    rootForRb.SetPositionAndRotation(spawnPoint.Position, spawnPoint.Rotation);
+                    if (rb != null)
+                    {
+                        rb.position = spawnPoint.Position;
+                        rb.rotation = spawnPoint.Rotation;
+                    }
+                }
             }
         }
         
@@ -184,70 +203,63 @@ namespace TankGame.Tank.Components
         /// </summary>
         private void SetTankVisible(bool visible)
         {
-            Renderer[] renderers = GetComponentsInChildren<Renderer>();
+            Renderer[] renderers = transform.root.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
-            {
                 renderer.enabled = visible;
-            }
         }
         
         /// <summary>
-        /// Включает танк после респавна
+        /// Включает танк после респавна (включает обратно компоненты и видимость).
         /// </summary>
         private void EnableTank()
         {
-            // Включаем коллайдеры
-            Collider[] colliders = GetComponentsInChildren<Collider>();
+            Transform root = transform.root;
+            Collider[] colliders = root.GetComponentsInChildren<Collider>();
             foreach (var collider in colliders)
-            {
                 collider.enabled = true;
-            }
             
-            // Включаем физику
-            Rigidbody rb = GetComponent<Rigidbody>();
+            Rigidbody rb = root.GetComponentInChildren<Rigidbody>();
             if (rb != null)
-            {
                 rb.isKinematic = false;
-            }
-            
-            // Включаем компоненты управления
-            if (tankController != null)
+            if (tankController != null) tankController.enabled = true;
+            var movement = root.GetComponent<TankMovement>();
+            if (movement != null) movement.enabled = true;
+            var turret = root.GetComponent<TankTurret>();
+            if (turret != null)
             {
-                tankController.enabled = true;
+                turret.enabled = true;
+                if (tankController != null && tankController.IsLocalPlayer)
+                    turret.SnapCameraToTank();
             }
+            var weapon = root.GetComponent<TankWeapon>();
+            if (weapon != null) weapon.enabled = true;
+            // Включаем AI только у ботов: у игрока не трогаем, иначе OnEnable снова вызовет SetIsLocalPlayer(false)
+            var ai = root.GetComponent<NavMeshTankAI>();
+            if (ai != null && (tankController == null || !tankController.IsLocalPlayer))
+                ai.enabled = true;
             
-            // Показываем танк
             SetTankVisible(true);
         }
 
         /// <summary>
-        /// Респавнит танк в его спавн-поинте
+        /// Респавнит танк в спавн-поинте и включает камеру.
         /// </summary>
         public void Respawn()
         {
             if (isRespawning)
                 return;
-                
             isRespawning = true;
             
-            // Используем SpawnManager для респавна
-            if (SpawnManager.Instance != null && tankController != null)
-            {
-                SpawnManager.Instance.RespawnTank(tankController);
-            }
-            
-            // Восстанавливаем здоровье
             currentHealth = maxHealth;
             isAlive = true;
             
-            // Включаем танк
+            if (SpawnManager.Instance != null && tankController != null)
+                SpawnManager.Instance.RespawnTank(tankController);
+            
             EnableTank();
-            
             isRespawning = false;
-            
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
             OnRespawn?.Invoke();
-            
             Debug.Log($"[TankHealth] Tank {gameObject.name} respawned!");
         }
 

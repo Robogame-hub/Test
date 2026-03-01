@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Utils;
+using TankGame.Tank;
 using BulletComponent = TankGame.Weapons.Bullet;
 using UnityEngine.Events;
 
@@ -110,8 +111,9 @@ namespace TankGame.Tank.Components
         private bool isFiring; // Защита от двойного выстрела в одном кадре
         private bool isReloading;
         private int currentAmmoInMagazine;
-        private TankMovement tankMovement; // Для получения фактора движения
-        private TankTurret tankTurret; // Для проверки выравнивания башни
+        private TankMovement tankMovement;
+        private TankTurret tankTurret;
+        private TankController tankController;
         private Coroutine reloadCoroutine;
         private int fireAnimationTriggerHash;
         private int ammoBeltFireAnimationTriggerHash;
@@ -144,6 +146,7 @@ namespace TankGame.Tank.Components
             InitializeBulletPool();
             tankMovement = GetComponentInParent<TankMovement>();
             tankTurret = GetComponentInParent<TankTurret>();
+            tankController = GetComponentInParent<TankController>();
             currentAmmoInMagazine = Mathf.Max(0, magazineSize);
             NotifyAmmoChanged();
         }
@@ -535,20 +538,21 @@ namespace TankGame.Tank.Components
 
         private void PlayReloadSound()
         {
+            if (tankController != null && !tankController.IsLocalPlayer)
+                return;
             if (weaponAudioSource == null || reloadSound == null)
                 return;
-
             weaponAudioSource.PlayOneShot(reloadSound, weaponSfxVolume);
         }
 
         public void TryPlayEmptyShotSound()
         {
+            if (tankController != null && !tankController.IsLocalPlayer)
+                return;
             if (weaponAudioSource == null || emptyShotSound == null)
                 return;
-
             if (Time.time - lastEmptyShotSoundTime < emptyShotSoundCooldown)
                 return;
-
             lastEmptyShotSoundTime = Time.time;
             weaponAudioSource.PlayOneShot(emptyShotSound, weaponSfxVolume);
         }

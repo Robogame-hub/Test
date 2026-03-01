@@ -1,9 +1,10 @@
 using UnityEngine;
+using TankGame.Tank;
 
 namespace TankGame.Tank.Components
 {
     /// <summary>
-    /// Диктор танка с вероятностным воспроизведением реплик и кулдаунами по событиям.
+    /// Диктор танка с вероятностным воспроизведением реплик. Работает только у локального игрока.
     /// </summary>
     [DisallowMultipleComponent]
     public class TankAnnouncer : MonoBehaviour
@@ -47,9 +48,11 @@ namespace TankGame.Tank.Components
         private float lastLowHpTime = -999f;
         private float lastNeedReloadTime = -999f;
         private float lastOutOfAmmoTime = -999f;
+        private TankController _tankController;
 
         private void Awake()
         {
+            _tankController = GetComponent<TankController>() ?? GetComponentInParent<TankController>();
             if (announcerAudioSource == null)
             {
                 GameObject announcerAudioObject = new GameObject("AnnouncerAudioSource");
@@ -93,6 +96,8 @@ namespace TankGame.Tank.Components
 
         private bool TryPlayEvent(AudioClip[] clips, float chance, float cooldown, ref float lastEventTime)
         {
+            if (_tankController != null && !_tankController.IsLocalPlayer)
+                return false;
             if (announcerAudioSource == null)
                 return false;
 

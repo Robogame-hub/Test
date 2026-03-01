@@ -152,20 +152,15 @@ namespace TankGame.Tank.AI
                 return;
 
             nextTargetSearchTime = Time.time + Mathf.Max(0.1f, targetSearchInterval);
-            TankController[] tanks = FindObjectsByType<TankController>(FindObjectsSortMode.None);
-            for (int i = 0; i < tanks.Length; i++)
-            {
-                TankController candidate = tanks[i];
-                if (candidate == null || candidate == tankController || !candidate.IsLocalPlayer)
-                    continue;
+            TankController localPlayer = TankRegistry.GetLocalPlayer();
+            if (localPlayer == null || localPlayer == tankController)
+                return;
 
-                TankHealth candidateHealth = candidate.GetComponent<TankHealth>();
-                if (candidateHealth != null && !candidateHealth.IsAlive())
-                    continue;
+            TankHealth candidateHealth = localPlayer.GetComponent<TankHealth>();
+            if (candidateHealth != null && !candidateHealth.IsAlive())
+                return;
 
-                target = candidate.transform;
-                break;
-            }
+            target = localPlayer.transform;
         }
 
         private void UpdateMovementInputs(float distanceToTarget)

@@ -1,10 +1,11 @@
 using UnityEngine;
+using TankGame.Tank;
 
 namespace TankGame.Tank.Components
 {
     /// <summary>
-    /// Управление двигателем танка и системой выхлопа
-    /// Включение/выключение двигателя, контроль дыма
+    /// Управление двигателем танка и системой выхлопа.
+    /// У ботов двигатель всегда заглушен, звуки двигателя не воспроизводятся.
     /// </summary>
     [RequireComponent(typeof(TankMovement))]
     public class TankEngine : MonoBehaviour
@@ -73,6 +74,7 @@ namespace TankGame.Tank.Components
         
         // Компоненты
         private TankMovement tankMovement;
+        private TankController tankController;
         private ParticleSystem.EmissionModule[] emissionModules;
         private ParticleSystem.MainModule[] mainModules;
         
@@ -87,6 +89,7 @@ namespace TankGame.Tank.Components
         private void Awake()
         {
             tankMovement = GetComponent<TankMovement>();
+            tankController = GetComponent<TankController>();
             
             // Автопоиск всех ParticleSystem
             if (autoFindParticles && (exhaustParticles == null || exhaustParticles.Length == 0))
@@ -132,30 +135,43 @@ namespace TankGame.Tank.Components
         
         private void Start()
         {
-            // Двигатель выключен по умолчанию
+            bool isLocal = IsLocalPlayerTank();
+            if (!isLocal)
+            {
+                // Бот: двигатель всегда заглушен, без звуков
+                isEngineRunning = false;
+                if (exhaustParticles != null)
+                {
+                    foreach (var ps in exhaustParticles)
+                    {
+                        if (ps != null) ps.Stop();
+                    }
+                }
+                if (engineAudioSource != null && engineAudioSource.isPlaying)
+                    engineAudioSource.Stop();
+                return;
+            }
             if (startEngineOnAwake)
-            {
                 StartEngine();
-            }
             else
-            {
                 StopEngine();
-            }
         }
         
         private void Update()
         {
-            // Управление двигателем
+            if (!IsLocalPlayerTank())
+                return;
             if (Input.GetKeyDown(engineToggleKey))
-            {
                 ToggleEngine();
-            }
-            
-            // Обновление выхлопа
             if (isEngineRunning)
-            {
                 UpdateExhaust();
-            }
+        }
+
+        private bool IsLocalPlayerTank()
+        {
+            if (tankController != null)
+                return tankController.IsLocalPlayer;
+            return true;
         }
         
         /// <summary>
@@ -195,23 +211,19 @@ namespace TankGame.Tank.Components
                 }
             }
             
-            // Звук запуска
-            if (engineAudioSource != null && engineStartSound != null)
+            if (IsLocalPlayerTank())
             {
-                engineAudioSource.PlayOneShot(engineStartSound);
+                if (engineAudioSource != null && engineStartSound != null)
+                    engineAudioSource.PlayOneShot(engineStartSound);
+                if (engineAudioSource != null && engineLoopSound != null)
+                {
+                    engineAudioSource.clip = engineLoopSound;
+                    engineAudioSource.loop = true;
+                    engineAudioSource.pitch = minEnginePitch;
+                    engineAudioSource.volume = minEngineVolume;
+                    engineAudioSource.Play();
+                }
             }
-            
-            // Запустить loop звук двигателя
-            if (engineAudioSource != null && engineLoopSound != null)
-            {
-                engineAudioSource.clip = engineLoopSound;
-                engineAudioSource.loop = true;
-                engineAudioSource.pitch = minEnginePitch;
-                engineAudioSource.volume = minEngineVolume;
-                engineAudioSource.Play();
-            }
-            
-            Debug.Log("[TankEngine] 🚀 Engine started!");
         }
         
         /// <summary>
@@ -236,19 +248,10 @@ namespace TankGame.Tank.Components
                 }
             }
             
-            // Остановить loop звук двигателя
             if (engineAudioSource != null && engineAudioSource.isPlaying)
-            {
                 engineAudioSource.Stop();
-            }
-            
-            // Звук остановки
-            if (engineAudioSource != null && engineStopSound != null)
-            {
+            if (IsLocalPlayerTank() && engineAudioSource != null && engineStopSound != null)
                 engineAudioSource.PlayOneShot(engineStopSound);
-            }
-            
-            Debug.Log("[TankEngine] 🛑 Engine stopped!");
         }
         
         /// <summary>
@@ -292,13 +295,9 @@ namespace TankGame.Tank.Components
                 }
             }
             
-            // Обновить звук двигателя (pitch и volume)
-            if (engineAudioSource != null && engineAudioSource.isPlaying)
+            if (IsLocalPlayerTank() && engineAudioSource != null && engineAudioSource.isPlaying)
             {
-                // Pitch зависит от скорости
                 engineAudioSource.pitch = Mathf.Lerp(minEnginePitch, maxEnginePitch, movementFactor);
-                
-                // Volume тоже зависит от скорости
                 engineAudioSource.volume = Mathf.Lerp(minEngineVolume, maxEngineVolume, movementFactor);
             }
         }
@@ -315,10 +314,8 @@ namespace TankGame.Tank.Components
         
         private void OnGUI()
         {
-            // Показать статус двигателя (для отладки) - только в Game View!
-            if (!Application.isPlaying)
+            if (!Application.isPlaying || !IsLocalPlayerTank())
                 return;
-            
             try
             {
                 GUIStyle style = new GUIStyle(GUI.skin.label);
