@@ -74,6 +74,14 @@ namespace TankGame.Tank
             else if (Input.GetKeyDown(KeyCode.Keypad2))
                 weaponSlot = 2;
 
+            // Смена оружия колёсиком мыши: любое движение колеса = переключение
+            int weaponScrollDelta = 0;
+            float scroll = Input.mouseScrollDelta.y;
+            if (scroll > 0.01f)
+                weaponScrollDelta = 1;
+            else if (scroll < -0.01f)
+                weaponScrollDelta = -1;
+
             lastCommand = new TankInputCommand(
                 vertical,
                 horizontal,
@@ -85,7 +93,8 @@ namespace TankGame.Tank
                 weaponSlot,
                 isFiringPressed,
                 isFiringHeld,
-                isFiringReleased
+                isFiringReleased,
+                weaponScrollDelta
             );
             return lastCommand;
         }

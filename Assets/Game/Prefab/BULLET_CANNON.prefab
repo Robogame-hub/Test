@@ -155,7 +155,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5186060f80f02314189d478ed394692a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Weapons.Bullet
-  damage: 30
+  damage: 50
   penetrationChance: 70
   nonPenetrationDamageMultiplier: 0.5
   enableTracer: 1

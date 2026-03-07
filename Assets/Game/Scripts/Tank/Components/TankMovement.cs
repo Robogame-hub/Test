@@ -29,6 +29,8 @@ namespace TankGame.Tank.Components
         [SerializeField] private float boostRotationMultiplier = 1.35f;
         [Tooltip("Расход стамины в секунду на форсаже")]
         [SerializeField] private float boostStaminaDrainPerSecond = 20f;
+        [Tooltip("Восстановление стамины в секунду, когда танк не использует форсаж")]
+        [SerializeField] private float staminaRegenPerSecond = 15f;
         [Tooltip("Максимум стамины")]
         [SerializeField] private float maxStamina = 100f;
         [Tooltip("Linear Drag на форсаже (меньше = легче снос в дрифт)")]
@@ -122,6 +124,12 @@ namespace TankGame.Tank.Components
         public float MaxStamina => maxStamina;
         public float StaminaNormalized => maxStamina > 0f ? Mathf.Clamp01(currentStamina / maxStamina) : 0f;
         public bool IsBoosting => isBoosting;
+
+        /// <summary>Восстановить стамину до максимума (например, при респавне).</summary>
+        public void RefillStamina()
+        {
+            currentStamina = maxStamina;
+        }
 
         private void Awake()
         {
@@ -260,6 +268,7 @@ namespace TankGame.Tank.Components
             if (isLocalPlayer && tankEngine != null && !tankEngine.IsEngineRunning)
             {
                 isBoosting = false;
+                currentStamina = Mathf.Min(maxStamina, currentStamina + staminaRegenPerSecond * Time.fixedDeltaTime);
                 rb.linearDamping = linearDrag;
                 rb.angularDamping = angularDrag;
                 targetVelocity = Vector3.zero;
@@ -280,9 +289,11 @@ namespace TankGame.Tank.Components
             {
                 currentStamina = Mathf.Max(0f, currentStamina - boostStaminaDrainPerSecond * Time.fixedDeltaTime);
                 if (currentStamina <= 0f)
-                {
                     isBoosting = false;
-                }
+            }
+            else
+            {
+                currentStamina = Mathf.Min(maxStamina, currentStamina + staminaRegenPerSecond * Time.fixedDeltaTime);
             }
 
             rb.linearDamping = isBoosting ? boostLinearDrag : linearDrag;

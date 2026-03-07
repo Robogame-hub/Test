@@ -17,36 +17,61 @@ namespace TankGame.Tank.AI
     public class NavMeshTankAI : MonoBehaviour
     {
         [Header("References")]
+        [Tooltip("Цель для преследования. Оставьте пустым при включённом авто-поиск игрока.")]
         [SerializeField] private Transform target;
+        [Tooltip("Контроллер танка (подтягивается автоматически, если пусто).")]
         [SerializeField] private TankController tankController;
+        [Tooltip("Компонент движения (подтягивается автоматически).")]
         [SerializeField] private TankMovement movement;
+        [Tooltip("Башня танка (подтягивается автоматически).")]
         [SerializeField] private TankTurret turret;
+        [Tooltip("Текущее оружие (подтягивается автоматически).")]
         [SerializeField] private TankWeapon weapon;
+        [Tooltip("Здоровье бота (подтягивается автоматически).")]
         [SerializeField] private TankHealth health;
+        [Tooltip("Анимация гусениц (подтягивается автоматически).")]
         [SerializeField] private TrackAnimationController trackAnimation;
+        [Tooltip("NavMesh Agent для построения пути (подтягивается автоматически).")]
         [SerializeField] private NavMeshAgent agent;
 
         [Header("Targeting")]
+        [Tooltip("Автоматически искать локального игрока как цель. Если выключено — укажите Target вручную.")]
         [SerializeField] private bool autoFindLocalPlayerTarget = true;
+        [Tooltip("Как часто искать цель, сек.")]
         [SerializeField] private float targetSearchInterval = 1f;
+        [Tooltip("Смещение точки прицеливания по высоте относительно центра цели (м).")]
         [SerializeField] private float targetAimHeightOffset = 0.6f;
 
         [Header("Movement")]
+        [Tooltip("Дальность, на которой бот начинает преследовать цель (м).")]
         [SerializeField] private float chaseRange = 60f;
+        [Tooltip("Дистанция атаки: ближе не подъезжает, стреляет с места (м).")]
         [SerializeField] private float attackRange = 22f;
+        [Tooltip("Минимальная дистанция до других ботов (м). Ближе не подъезжает, чтобы не слипаться.")]
+        [SerializeField] private float minDistanceToOtherBots = 6f;
+        [Tooltip("Как часто пересчитывать путь к цели, сек.")]
         [SerializeField] private float repathInterval = 0.2f;
+        [Tooltip("Угол между курсом и направлением к цели, при котором руль в упор (град).")]
         [SerializeField] private float turnAngleForFullInput = 60f;
+        [Tooltip("Если угол до цели больше этого — бот не едет вперёд, только разворачивается (град).")]
         [SerializeField] private float moveAngleLimit = 100f;
 
         [Header("Combat")]
+        [Tooltip("Максимальная дистанция стрельбы (м).")]
         [SerializeField] private float fireRange = 20f;
+        [Tooltip("Стрелять только при отсутствии препятствий между ботом и целью.")]
         [SerializeField] private bool requireLineOfSight = true;
+        [Tooltip("Слои, по которым проверяется линия видимости (луч).")]
         [SerializeField] private LayerMask lineOfSightMask = ~0;
+        [Tooltip("Стрелять только когда ствол достаточно наведён на цель.")]
         [SerializeField] private bool requireTurretAlignmentForFire = false;
 
         [Header("Weapon Switching")]
+        [Tooltip("Переключать пушку/пулемёт в зависимости от дистанции до цели.")]
         [SerializeField] private bool enableWeaponSwitching = true;
+        [Tooltip("Ближе этой дистанции (м) бот предпочитает пулемёт.")]
         [SerializeField] private float machineGunPreferredRange = 12f;
+        [Tooltip("Минимальная пауза между переключениями оружия, сек.")]
         [SerializeField] private float weaponSwitchCooldown = 0.5f;
 
         private float nextTargetSearchTime;
@@ -208,10 +233,16 @@ namespace TankGame.Tank.AI
                 return;
             }
 
-            desiredWorld.Normalize();
-            // TankMovement двигает при positive vertical в направлении -transform.forward.
-            // Поэтому для AI-руления используем именно это "реальное forward-направление движения",
-            // чтобы бот ехал к цели, а не от нее.
+            // Не приближаться к другим ботам ближе minDistanceToOtherBots
+            Vector3 separation = GetSeparationFromOtherBots();
+            if (separation.sqrMagnitude > 0.01f)
+            {
+                desiredWorld = (desiredWorld + separation).normalized;
+                desiredWorld.y = 0f;
+                if (desiredWorld.sqrMagnitude > 0.01f)
+                    desiredWorld.Normalize();
+            }
+
             Vector3 forward = -transform.forward;
             forward.y = 0f;
             forward.Normalize();
@@ -219,8 +250,60 @@ namespace TankGame.Tank.AI
             float signedAngle = Vector3.SignedAngle(forward, desiredWorld, Vector3.up);
             currentHorizontalInput = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
 
-            // Positive vertical выбран под текущий префаб (визуально едет передом).
-            currentVerticalInput = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
+            float vert = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
+            float distToNearestBot = GetDistanceToNearestOtherBot();
+            if (distToNearestBot >= 0f && distToNearestBot < minDistanceToOtherBots)
+                vert = 0f;
+            currentVerticalInput = vert;
+        }
+
+        /// <summary>Вектор «отталкивания» от других ботов (нормализованный).</summary>
+        private Vector3 GetSeparationFromOtherBots()
+        {
+            if (minDistanceToOtherBots <= 0f) return Vector3.zero;
+            var all = TankRegistry.GetAllTanks();
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            Vector3 myPos = transform.position;
+            myPos.y = 0f;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var t = all[i];
+                if (t == null || t == tankController || t.IsLocalPlayer) continue;
+                var h = t.GetComponent<TankHealth>();
+                if (h != null && !h.IsAlive()) continue;
+                Vector3 otherPos = t.transform.position;
+                otherPos.y = 0f;
+                float d = Vector3.Distance(myPos, otherPos);
+                if (d < 0.01f || d > minDistanceToOtherBots) continue;
+                Vector3 away = (myPos - otherPos).normalized;
+                float strength = 1f - (d / minDistanceToOtherBots);
+                sum += away * strength;
+                count++;
+            }
+            if (count == 0) return Vector3.zero;
+            return sum.normalized;
+        }
+
+        private float GetDistanceToNearestOtherBot()
+        {
+            if (minDistanceToOtherBots <= 0f) return -1f;
+            var all = TankRegistry.GetAllTanks();
+            float minSq = float.MaxValue;
+            Vector3 myPos = transform.position;
+            myPos.y = 0f;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var t = all[i];
+                if (t == null || t == tankController || t.IsLocalPlayer) continue;
+                var h = t.GetComponent<TankHealth>();
+                if (h != null && !h.IsAlive()) continue;
+                Vector3 otherPos = t.transform.position;
+                otherPos.y = 0f;
+                float sq = (otherPos - myPos).sqrMagnitude;
+                if (sq < minSq) minSq = sq;
+            }
+            return minSq < float.MaxValue ? Mathf.Sqrt(minSq) : -1f;
         }
 
         private void TryFireAtTarget(float distanceToTarget, Vector3 aimPoint)

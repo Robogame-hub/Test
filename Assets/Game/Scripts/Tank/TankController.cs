@@ -238,6 +238,16 @@ namespace TankGame.Tank
                 SwitchWeapon(WeaponType.Cannon);
             else if (command.WeaponSlot == 2)
                 SwitchWeapon(WeaponType.MachineGun);
+
+            // Смена оружия колёсиком мыши (просто переключаемся между двумя слотами)
+            if (command.WeaponScrollDelta != 0)
+            {
+                WeaponType nextWeapon =
+                    activeWeaponType == WeaponType.Cannon
+                        ? WeaponType.MachineGun
+                        : WeaponType.Cannon;
+                SwitchWeapon(nextWeapon);
+            }
         }
 
         private void ProcessMachineGunFire(TankInputCommand command)

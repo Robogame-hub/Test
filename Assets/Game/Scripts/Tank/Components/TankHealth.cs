@@ -105,11 +105,8 @@ namespace TankGame.Tank.Components
             PlayExplosionEffect();
             DisableTank();
             
-            // Бот: освобождаем спавн-поинт (респавн будет в случайном)
-            if (tankController != null && !tankController.IsLocalPlayer && SpawnManager.Instance != null)
-            {
-                SpawnManager.Instance.FreeSpawnPoint(tankController);
-            }
+            // Бот: НЕ освобождаем спавн-поинт — он закреплён за ботом, респавн будет в том же поинте
+            // Игрок: спавн-поинт не трогаем (у игрока свой фиксированный поинт)
             
             Invoke(nameof(Respawn), respawnDelay);
             OnDeath?.Invoke();
@@ -255,6 +252,13 @@ namespace TankGame.Tank.Components
             
             if (SpawnManager.Instance != null && tankController != null)
                 SpawnManager.Instance.RespawnTank(tankController);
+            
+            Transform root = transform.root;
+            foreach (var w in root.GetComponentsInChildren<TankWeapon>(true))
+                w.RefillAmmo();
+            var movement = root.GetComponent<TankMovement>();
+            if (movement != null)
+                movement.RefillStamina();
             
             EnableTank();
             isRespawning = false;

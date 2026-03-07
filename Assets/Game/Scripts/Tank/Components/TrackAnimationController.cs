@@ -96,10 +96,19 @@ namespace TankGame.Tank.Components
         /// Вызывается из TankController.FixedUpdate.
         /// verticalInput:   +1 = W (вперёд),  -1 = S (назад).
         /// horizontalInput: +1 = D (вправо),  -1 = A (влево).
+        /// При заглушенном двигателе анимация гусениц не проигрывается.
         /// </summary>
         public void UpdateTrackAnimation(float verticalInput, float horizontalInput)
         {
-            bool engineRunning = engine == null || engine.IsEngineRunning;
+            if (engine != null && !engine.ShouldAnimateTracks)
+            {
+                currentLeftSpeed = Mathf.MoveTowards(currentLeftSpeed, 0f, speedResponse * Time.fixedDeltaTime);
+                currentRightSpeed = Mathf.MoveTowards(currentRightSpeed, 0f, speedResponse * Time.fixedDeltaTime);
+                ApplyToAnimator(leftTrackAnimator, currentLeftSpeed, leftParamHash, ref lastLeftSign);
+                ApplyToAnimator(rightTrackAnimator, currentRightSpeed, rightParamHash);
+                return;
+            }
+
             float forward = Mathf.Abs(verticalInput) < deadZone ? 0f : verticalInput;
             float turn = Mathf.Abs(horizontalInput) < deadZone ? 0f : horizontalInput;
 
@@ -112,7 +121,8 @@ namespace TankGame.Tank.Components
             float targetRight;
             bool isBackwardByInput = forward < 0f;
 
-            if (engineRunning && (Mathf.Abs(forward) > 0f || Mathf.Abs(turn) > 0f))
+            bool hasInput = Mathf.Abs(forward) > 0f || Mathf.Abs(turn) > 0f;
+            if (hasInput)
             {
                 // Базовый forward-вклад.
                 targetLeft = forward * leftForwardFactor;
@@ -141,7 +151,7 @@ namespace TankGame.Tank.Components
             }
             else
             {
-                // Двигатель выключен ИЛИ ввода нет: используем фактическую инерцию танка.
+                // Ввода нет: используем фактическую скорость танка (инерция/затухание).
                 Vector3 localVelocity = transform.InverseTransformDirection(movement.CurrentVelocity);
                 float forwardVelocityNorm = Mathf.Clamp(localVelocity.z / Mathf.Max(movement.MoveSpeed, 0.01f), -1f, 1f);
                 if (invertForward)

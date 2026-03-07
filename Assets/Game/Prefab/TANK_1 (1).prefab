@@ -317,6 +317,7 @@ MonoBehaviour:
   boostSpeedMultiplier: 2
   boostRotationMultiplier: 1.35
   boostStaminaDrainPerSecond: 20
+  staminaRegenPerSecond: 15
   maxStamina: 1000
   boostLinearDrag: 0.09
   boostAngularDrag: 0.7
@@ -700,18 +701,19 @@ MonoBehaviour:
   targetSearchInterval: 1
   targetAimHeightOffset: 0.6
   chaseRange: 60
-  attackRange: 30
+  attackRange: 15
+  minDistanceToOtherBots: 25
   repathInterval: 0.2
   turnAngleForFullInput: 60
   moveAngleLimit: 100
-  fireRange: 31
+  fireRange: 25
   requireLineOfSight: 1
   lineOfSightMask:
     serializedVersion: 2
     m_Bits: 4294967295
   requireTurretAlignmentForFire: 0
   enableWeaponSwitching: 1
-  machineGunPreferredRange: 12
+  machineGunPreferredRange: 22
   weaponSwitchCooldown: 0.5
 --- !u!82 &4647533095163649834
 AudioSource:

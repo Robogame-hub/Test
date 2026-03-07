@@ -21,7 +21,7 @@ namespace TankGame.UI
 
         [Header("Display")]
         [SerializeField] private string ammoFormat = "{0}/{1} | {2}";
-        [SerializeField] private string reloadingLabel = "  RELOAD...";
+        [SerializeField] private string reloadingLabel = "RELOAD";
         [SerializeField] private Color normalColor = Color.white;
         [SerializeField] private Color lowAmmoColor = new Color(1f, 0.45f, 0.2f, 1f);
         [SerializeField] private Color emptyAmmoColor = Color.red;
@@ -79,9 +79,16 @@ namespace TankGame.UI
 
         private void UpdateDisplay(int currentMagazine, int magazineSize, int reserveAmmo)
         {
-            string textValue = string.Format(ammoFormat, currentMagazine, magazineSize, reserveAmmo);
+            string textValue;
             if (tankWeapon != null && tankWeapon.IsReloading)
-                textValue += reloadingLabel;
+            {
+                // Во время перезарядки показываем только надпись RELOAD
+                textValue = reloadingLabel;
+            }
+            else
+            {
+                textValue = string.Format(ammoFormat, currentMagazine, magazineSize, reserveAmmo);
+            }
 
             Color color = normalColor;
             if (currentMagazine <= 0 && reserveAmmo <= 0)

@@ -1,0 +1,30 @@
+═══════════════════════════════════════════════════════════════
+  НАСТРОЙКА ШКАЛЫ СТАМИНЫ (БЕЗ SLIDER)
+═══════════════════════════════════════════════════════════════
+
+1. Создай пустой UI объект (например "StaminaBar").
+   Добавь на него компонент StaminaUI.
+
+2. Иерархия под ним:
+
+   StaminaBar (RectTransform + StaminaUI)
+   ├── Background  — Image (тёмный цвет, например чёрный 0.15 альфа)
+   │                 Задай ширину/высоту полоски (например 200 x 12).
+   └── Fill        — Image (дочерний к Background, Anchor stretch,
+                     Left=0, Right=0, Top=0, Bottom=0)
+                     • Image Type: Filled
+                     • Fill Method: Horizontal
+                     • Fill Origin: Left
+                     • Цвет задаётся скриптом (голубой/оранжевый).
+
+3. В StaminaUI в инспекторе:
+   • Background Image → перетащи Background.
+   • Fill Image      → перетащи Fill.
+   • Stamina Text    — по желанию, TextMeshPro для "85 / 100".
+
+4. Цвета и порог:
+   • Full Color  — когда стамины много (голубой).
+   • Low Color   — когда стамины мало (оранжевый).
+   • Low Threshold — ниже этого значения показывается Low Color (0.25 = 25%).
+
+Итог: тонкая полоска с фоном, заполняется слева направо, без Slider.

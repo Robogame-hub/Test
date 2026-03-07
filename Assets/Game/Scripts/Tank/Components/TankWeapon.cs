@@ -120,6 +120,7 @@ namespace TankGame.Tank.Components
         private float lastEmptyShotSoundTime = -999f;
         private bool hasExternalAimPoint;
         private Vector3 externalAimPoint;
+        private int initialReserveAmmo;
 
         [System.Serializable]
         public class AmmoChangedEvent : UnityEvent<int, int, int> { }
@@ -147,7 +148,22 @@ namespace TankGame.Tank.Components
             tankMovement = GetComponentInParent<TankMovement>();
             tankTurret = GetComponentInParent<TankTurret>();
             tankController = GetComponentInParent<TankController>();
+            initialReserveAmmo = reserveAmmo;
             currentAmmoInMagazine = Mathf.Max(0, magazineSize);
+            NotifyAmmoChanged();
+        }
+
+        /// <summary>Полностью восполнить боезапас (магазин + запас), например при респавне.</summary>
+        public void RefillAmmo()
+        {
+            if (reloadCoroutine != null)
+            {
+                StopCoroutine(reloadCoroutine);
+                reloadCoroutine = null;
+            }
+            isReloading = false;
+            currentAmmoInMagazine = magazineSize;
+            reserveAmmo = initialReserveAmmo;
             NotifyAmmoChanged();
         }
         

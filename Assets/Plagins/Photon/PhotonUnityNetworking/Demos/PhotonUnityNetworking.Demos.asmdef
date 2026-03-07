@@ -6,5 +6,5 @@
         "PhotonUnityNetworking.Utilities"
     ],
     "includePlatforms": [],
-    "excludePlatforms": []
+    "excludePlatforms": ["WebGL"]
 }

@@ -85,6 +85,8 @@ namespace TankGame.Tank.Components
         
         // Свойства
         public bool IsEngineRunning => isEngineRunning;
+        /// <summary> true = можно анимировать гусеницы (двигатель заведён или это бот) </summary>
+        public bool ShouldAnimateTracks => IsEngineRunning || !IsLocalPlayerTank();
         
         private void Awake()
         {
@@ -311,35 +313,6 @@ namespace TankGame.Tank.Components
             if (emissionTransitionSpeed < 0.1f) emissionTransitionSpeed = 0.1f;
         }
         #endif
-        
-        private void OnGUI()
-        {
-            if (!Application.isPlaying || !IsLocalPlayerTank())
-                return;
-            try
-            {
-                GUIStyle style = new GUIStyle(GUI.skin.label);
-                style.fontSize = 16;
-                style.normal.textColor = isEngineRunning ? Color.green : Color.red;
-                
-                string status = isEngineRunning ? "ENGINE ON" : "ENGINE OFF";
-                string info = isEngineRunning ? $"Emission: {currentEmissionRate:F1}" : "";
-                
-                GUI.Label(new Rect(10, 120, 300, 25), status, style);
-                if (isEngineRunning)
-                {
-                    style.fontSize = 12;
-                    GUI.Label(new Rect(10, 145, 300, 20), info, style);
-                }
-                
-                style.normal.textColor = Color.white;
-                GUI.Label(new Rect(10, 165, 300, 20), $"Press {engineToggleKey} to toggle", style);
-            }
-            catch
-            {
-                // Игнорируем ошибки в OnGUI (может быть вызвано в SceneView)
-            }
-        }
     }
 }
 

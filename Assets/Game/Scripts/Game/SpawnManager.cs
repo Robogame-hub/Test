@@ -217,7 +217,7 @@ namespace TankGame.Game
         }
         
         /// <summary>
-        /// Респавнит танк: игрок — в указанном спавн-поинте, бот — в случайном.
+        /// Респавнит танк: игрок — в указанном спавн-поинте, бот — в своём закреплённом поинте.
         /// </summary>
         public void RespawnTank(TankController tank)
         {
@@ -231,7 +231,8 @@ namespace TankGame.Game
             }
             else
             {
-                spawnPoint = GetRandomFreeSpawnPoint();
+                // Бот: сначала свой закреплённый поинт (тот же, где заспавнился)
+                spawnPoint = GetTankSpawnPoint(tank) ?? GetRandomFreeSpawnPoint();
             }
             
             if (spawnPoint == null)

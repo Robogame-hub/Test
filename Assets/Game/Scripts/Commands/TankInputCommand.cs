@@ -20,6 +20,7 @@ namespace TankGame.Commands
         public bool IsReloadRequested;
         public bool IsBoosting;
         public int WeaponSlot;
+        public int WeaponScrollDelta;
 
         public TankInputCommand(
             float vertical,
@@ -32,7 +33,8 @@ namespace TankGame.Commands
             int weaponSlot = 0,
             bool isFiringPressed = false,
             bool isFiringHeld = false,
-            bool isFiringReleased = false)
+            bool isFiringReleased = false,
+            int weaponScrollDelta = 0)
         {
             Timestamp = Time.time;
             VerticalInput = vertical;
@@ -46,6 +48,7 @@ namespace TankGame.Commands
             IsReloadRequested = reloadRequested;
             IsBoosting = isBoosting;
             WeaponSlot = weaponSlot;
+            WeaponScrollDelta = weaponScrollDelta;
         }
     }
 }

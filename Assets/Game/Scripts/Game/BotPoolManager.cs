@@ -7,7 +7,7 @@ namespace TankGame.Game
 {
     /// <summary>
     /// Пул ботов: настраиваемое количество, спавн-поинты.
-    /// После смерти бот удаляется с карты и респавнится в случайном спавн-поинте.
+    /// Каждый бот закрепляется за своим спавн-поинтом; после смерти респавнится в том же поинте.
     /// </summary>
     public class BotPoolManager : MonoBehaviour
     {
@@ -22,6 +22,8 @@ namespace TankGame.Game
         [SerializeField] private SpawnPoint[] botSpawnPoints;
         [Tooltip("Использовать спавн-поинты SpawnManager если массив пуст")]
         [SerializeField] private bool useSpawnManagerPointsIfEmpty = true;
+        [Tooltip("Не выбирать точку, если другой бот уже в пределах этого радиуса (м). Чтобы не спавниться в одну точку.")]
+        [SerializeField] private float minSpawnSeparation = 4f;
         
         [Header("Timing")]
         [Tooltip("Задержка перед первым спавном ботов (сек)")]
@@ -42,7 +44,7 @@ namespace TankGame.Game
         }
 
         /// <summary>
-        /// Спавнит всех ботов в случайных спавн-поинтах.
+        /// Спавнит всех ботов в разных спавн-поинтах (каждый бот — свой поинт).
         /// </summary>
         public void SpawnAllBots()
         {
@@ -59,59 +61,84 @@ namespace TankGame.Game
                 return;
             }
 
-            for (int i = 0; i < botCount; i++)
+            // Уникальные точки (на случай дубликатов в массиве)
+            var uniquePoints = points.Where(sp => sp != null).Distinct().ToArray();
+            var freePoints = uniquePoints.Where(sp => !sp.IsOccupied).ToArray();
+
+            if (freePoints.Length == 0)
             {
-                SpawnBot(points);
+                Debug.LogWarning("[BotPoolManager] No free spawn points!");
+                return;
             }
 
-            Debug.Log($"[BotPoolManager] Spawned {botCount} bots.");
+            // Перемешиваем, чтобы распределить ботов случайно
+            for (int i = freePoints.Length - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (freePoints[i], freePoints[j]) = (freePoints[j], freePoints[i]);
+            }
+
+            int spawned = 0;
+            for (int i = 0; i < botCount && i < freePoints.Length; i++)
+            {
+                if (SpawnBotAtPoint(freePoints[i]) != null)
+                    spawned++;
+            }
+
+            Debug.Log($"[BotPoolManager] Spawned {spawned} bots at different spawn points.");
         }
 
         /// <summary>
-        /// Спавнит одного бота в случайном поинте.
+        /// Спавнит одного бота в случайном свободном поинте.
         /// </summary>
         public TankController SpawnBot()
         {
             SpawnPoint[] points = GetSpawnPoints();
-            return points != null && points.Length > 0 ? SpawnBot(points) : null;
+            if (points == null || points.Length == 0)
+                return null;
+
+            var available = points.Where(sp => sp != null && !sp.IsOccupied).ToArray();
+            if (available.Length == 0)
+            {
+                Debug.LogWarning("[BotPoolManager] No free spawn points, cannot spawn bot.");
+                return null;
+            }
+
+            SpawnPoint point = available[Random.Range(0, available.Length)];
+            return SpawnBotAtPoint(point);
         }
 
-        private TankController SpawnBot(SpawnPoint[] points)
+        /// <summary>
+        /// Спавнит бота в указанном спавн-поинте. Поинт закрепляется за ботом (респавн там же).
+        /// </summary>
+        private TankController SpawnBotAtPoint(SpawnPoint point)
         {
+            if (point == null || point.IsOccupied)
+            {
+                Debug.LogWarning("[BotPoolManager] Spawn point is null or occupied.");
+                return null;
+            }
+
+            point.SetOccupied(true, null);
+
             GameObject go = Instantiate(botPrefab);
             TankController tank = go.GetComponent<TankController>();
             if (tank == null)
-            {
                 tank = go.GetComponentInChildren<TankController>();
-            }
 
             if (tank == null)
             {
                 Debug.LogError("[BotPoolManager] Bot prefab has no TankController!");
+                point.SetOccupied(false);
                 Destroy(go);
                 return null;
             }
 
             tank.SetIsLocalPlayer(false);
 
-            // Только свободные точки — бот не спавнится в занятую
-            SpawnPoint[] freePoints = points.Where(sp => sp != null && !sp.IsOccupied).ToArray();
-            if (freePoints.Length == 0)
-            {
-                Debug.LogWarning("[BotPoolManager] No free spawn points, cannot spawn bot.");
-                Destroy(go);
-                return null;
-            }
-            SpawnPoint point = freePoints[Random.Range(0, freePoints.Length)];
             if (SpawnManager.Instance != null)
-            {
                 SpawnManager.Instance.RegisterTankAtSpawnPoint(tank, point);
-                point.SpawnTank(tank);
-            }
-            else
-            {
-                point.SpawnTank(tank);
-            }
+            point.SpawnTank(tank);
 
             _spawnedBots.Add(tank);
             return tank;
