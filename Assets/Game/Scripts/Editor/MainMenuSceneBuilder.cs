@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System.Collections.Generic;
 using TankGame.Menu;
 using TMPro;
@@ -59,7 +59,7 @@ namespace TankGame.EditorTools
             Button settingsButton = CreateMenuButton(leftPanel.transform, "SettingsButton", "menu.settings");
             Button exitButton = CreateMenuButton(leftPanel.transform, "ExitButton", "menu.exit");
 
-            GameObject settingsPanel = CreatePanel("SettingsPanel", leftPanel.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            GameObject settingsPanel = CreatePanel("SettingsPanel", canvas.transform, new Vector2(0f, 0f), new Vector2(0.4f, 1f));
             settingsPanel.SetActive(false);
             VerticalLayoutGroup settingsLayout = settingsPanel.AddComponent<VerticalLayoutGroup>();
             settingsLayout.spacing = 8f;
@@ -92,7 +92,7 @@ namespace TankGame.EditorTools
             TMP_Text langLabel = CreateLabel("LanguageLabel", settingsPanel.transform, "settings.language", 22f, FontStyles.Normal);
             GameObject langRow = CreateRow("LanguageRow", settingsPanel.transform);
             Button prevLang = CreateSmallButton(langRow.transform, "LangPrev", "<");
-            TMP_Text langValue = CreatePlainLabel(langRow.transform, "LanguageValue", "�������", 22f, FontStyles.Bold);
+            TMP_Text langValue = CreatePlainLabel(langRow.transform, "LanguageValue", "Р В РЎС“РЎРѓРЎРѓР С”Р С‘Р в„–", 22f, FontStyles.Bold);
             Button nextLang = CreateSmallButton(langRow.transform, "LangNext", ">");
 
             Button backSettingsButton = CreateMenuButton(settingsPanel.transform, "BackFromSettingsButton", "menu.back");
@@ -258,13 +258,38 @@ namespace TankGame.EditorTools
             TMP_Text tankName = CreatePlainLabel(selectorRow.transform, "TankName", "TANK 1", 30f, FontStyles.Bold);
             Button next = CreateSmallButton(selectorRow.transform, "NextTank", ">", 80f, 80f);
 
-            Image preview = CreateImage("TankPreview", container.transform, new Color(0f, 0f, 0f, 0.25f));
-            SetElementHeight(preview.gameObject, 260f);
+            GameObject previewBlock = CreatePanel("PreviewBlock", container.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            previewBlock.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.18f);
+            SetElementHeight(previewBlock, 320f);
 
-            Image speedFill = CreateStatRow(container.transform, "tank.speed");
-            Image armorFill = CreateStatRow(container.transform, "tank.armor");
-            Image fireFill = CreateStatRow(container.transform, "tank.firepower");
-            Image handlingFill = CreateStatRow(container.transform, "tank.handling");
+            GameObject previewSquareObj = new GameObject("TankPreviewSquare", typeof(RectTransform), typeof(Image), typeof(AspectRatioFitter));
+            previewSquareObj.transform.SetParent(previewBlock.transform, false);
+            RectTransform previewSquareRt = previewSquareObj.GetComponent<RectTransform>();
+            previewSquareRt.anchorMin = new Vector2(0.5f, 0.5f);
+            previewSquareRt.anchorMax = new Vector2(0.5f, 0.5f);
+            previewSquareRt.pivot = new Vector2(0.5f, 0.5f);
+            previewSquareRt.sizeDelta = new Vector2(280f, 280f);
+
+            AspectRatioFitter previewAspect = previewSquareObj.GetComponent<AspectRatioFitter>();
+            previewAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            previewAspect.aspectRatio = 1f;
+
+            Image preview = previewSquareObj.GetComponent<Image>();
+            preview.color = new Color(0f, 0f, 0f, 0.30f);
+
+            GameObject statsBlock = CreatePanel("StatsBlock", container.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            statsBlock.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.12f);
+            VerticalLayoutGroup statsLayout = statsBlock.AddComponent<VerticalLayoutGroup>();
+            statsLayout.padding = new RectOffset(10, 10, 10, 10);
+            statsLayout.spacing = 8f;
+            statsLayout.childControlWidth = true;
+            statsLayout.childControlHeight = false;
+            statsLayout.childAlignment = TextAnchor.UpperLeft;
+
+            SegmentedStatBar speedBar = CreateStatRow(statsBlock.transform, "tank.speed");
+            SegmentedStatBar armorBar = CreateStatRow(statsBlock.transform, "tank.armor");
+            SegmentedStatBar fireBar = CreateStatRow(statsBlock.transform, "tank.firepower");
+            SegmentedStatBar handlingBar = CreateStatRow(statsBlock.transform, "tank.handling");
 
             tankSelection = new GameObject("TankSelectionController").AddComponent<TankSelectionController>();
             tankSelection.transform.SetParent(container.transform, false);
@@ -272,10 +297,10 @@ namespace TankGame.EditorTools
             tankSelection.nextButton = next;
             tankSelection.tankNameText = tankName;
             tankSelection.tankPreviewImage = preview;
-            tankSelection.speedFill = speedFill;
-            tankSelection.armorFill = armorFill;
-            tankSelection.firepowerFill = fireFill;
-            tankSelection.handlingFill = handlingFill;
+            tankSelection.speedBar = speedBar;
+            tankSelection.armorBar = armorBar;
+            tankSelection.firepowerBar = fireBar;
+            tankSelection.handlingBar = handlingBar;
         }
 
         private static void SetupMenuMusic()
@@ -296,24 +321,77 @@ namespace TankGame.EditorTools
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
         }
-        private static Image CreateStatRow(Transform parent, string key)
+        private static SegmentedStatBar CreateStatRow(Transform parent, string key)
         {
             GameObject row = CreateRow($"{key}_Row", parent);
-            CreateLabel($"{key}_Label", row.transform, key, 20f, FontStyles.Normal);
+            LayoutElement rowLayout = row.AddComponent<LayoutElement>();
+            rowLayout.minHeight = 32f;
+            rowLayout.preferredHeight = 32f;
 
-            GameObject barRoot = CreatePanel("BarRoot", row.transform, new Vector2(0f, 0f), new Vector2(0f, 1f));
-            RectTransform barRt = barRoot.GetComponent<RectTransform>();
-            barRt.sizeDelta = new Vector2(320f, 20f);
-            Image barBg = barRoot.GetComponent<Image>();
-            barBg.color = new Color(1f, 1f, 1f, 0.2f);
+            TMP_Text label = CreateLabel($"{key}_Label", row.transform, key, 20f, FontStyles.Normal);
+            LayoutElement labelLayout = label.gameObject.AddComponent<LayoutElement>();
+            labelLayout.minWidth = 170f;
+            labelLayout.preferredWidth = 170f;
 
-            GameObject fillObj = CreatePanel("Fill", barRoot.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
-            Image fill = fillObj.GetComponent<Image>();
-            fill.type = Image.Type.Filled;
-            fill.fillMethod = Image.FillMethod.Horizontal;
-            fill.fillAmount = 0.5f;
-            fill.color = TextGreen;
-            return fill;
+            GameObject barRoot = new GameObject("BarsRoot", typeof(RectTransform), typeof(LayoutElement));
+            barRoot.transform.SetParent(row.transform, false);
+            LayoutElement barRootLayout = barRoot.GetComponent<LayoutElement>();
+            barRootLayout.minWidth = 320f;
+            barRootLayout.preferredWidth = 320f;
+            barRootLayout.minHeight = 20f;
+            barRootLayout.preferredHeight = 20f;
+
+            GameObject bgObj = new GameObject("BackgroundBars", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            bgObj.transform.SetParent(barRoot.transform, false);
+            RectTransform bgRt = bgObj.GetComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero;
+            bgRt.anchorMax = Vector2.one;
+            bgRt.offsetMin = Vector2.zero;
+            bgRt.offsetMax = Vector2.zero;
+            HorizontalLayoutGroup bgLayout = bgObj.GetComponent<HorizontalLayoutGroup>();
+            bgLayout.spacing = 4f;
+            bgLayout.childControlWidth = true;
+            bgLayout.childControlHeight = true;
+            bgLayout.childForceExpandWidth = true;
+            bgLayout.childForceExpandHeight = true;
+
+            GameObject fillObj = new GameObject("FillBars", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            fillObj.transform.SetParent(barRoot.transform, false);
+            RectTransform fillRt = fillObj.GetComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = Vector2.one;
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+            HorizontalLayoutGroup fillLayout = fillObj.GetComponent<HorizontalLayoutGroup>();
+            fillLayout.spacing = 4f;
+            fillLayout.childControlWidth = true;
+            fillLayout.childControlHeight = true;
+            fillLayout.childForceExpandWidth = true;
+            fillLayout.childForceExpandHeight = true;
+
+            GameObject segmentTemplateObj = new GameObject("SegmentTemplate", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            segmentTemplateObj.transform.SetParent(fillObj.transform, false);
+            LayoutElement segmentLayout = segmentTemplateObj.GetComponent<LayoutElement>();
+            segmentLayout.minWidth = 8f;
+            segmentLayout.preferredWidth = 8f;
+            Image segmentTemplate = segmentTemplateObj.GetComponent<Image>();
+            segmentTemplate.color = TextGreen;
+            segmentTemplateObj.SetActive(false);
+
+            TMP_Text valueText = CreatePlainLabel(row.transform, "Value", "50", 20f, FontStyles.Bold);
+            LayoutElement valueLayout = valueText.gameObject.AddComponent<LayoutElement>();
+            valueLayout.minWidth = 52f;
+            valueLayout.preferredWidth = 52f;
+
+            SegmentedStatBar statBar = row.AddComponent<SegmentedStatBar>();
+            statBar.backgroundContainer = bgRt;
+            statBar.fillContainer = fillRt;
+            statBar.segmentTemplate = segmentTemplate;
+            statBar.valueText = valueText;
+            statBar.segmentCount = 10;
+            statBar.backgroundColor = new Color(0.88f, 0.16f, 0.16f, 0.55f);
+            statBar.fillColor = TextGreen;
+            return statBar;
         }
 
         private static GameObject CreateRoomEntryTemplate(Transform parent)
@@ -362,7 +440,7 @@ namespace TankGame.EditorTools
 
         private static void CreateCamera()
         {
-            GameObject cam = new GameObject("Main Camera", typeof(Camera));
+            GameObject cam = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
             cam.tag = "MainCamera";
             Camera camera = cam.GetComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -608,6 +686,10 @@ namespace TankGame.EditorTools
     }
 }
 #endif
+
+
+
+
 
 
 
