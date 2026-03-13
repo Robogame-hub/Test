@@ -193,7 +193,7 @@ namespace TankGame.Menu
 
         private void PlaySolo()
         {
-            GameSessionSettings.PrepareSolo(Mathf.Max(1, soloBotCount));
+            GameSessionSettings.PrepareSolo(GameSessionSettings.MaxPlayers);
             LoadConfiguredScene(gameSceneName, "Assets/Scenes/Core.unity");
         }
 

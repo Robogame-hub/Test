@@ -97,6 +97,36 @@ namespace TankGame.EditorTools
 
             Button backSettingsButton = CreateMenuButton(settingsPanel.transform, "BackFromSettingsButton", "menu.back");
 
+            GameObject sandboxMatchPanel = CreatePanel("SandboxMatchPanel", canvas.transform, new Vector2(0f, 0f), new Vector2(0.4f, 1f));
+            sandboxMatchPanel.SetActive(false);
+            VerticalLayoutGroup sandboxLayout = sandboxMatchPanel.AddComponent<VerticalLayoutGroup>();
+            sandboxLayout.spacing = 12f;
+            sandboxLayout.padding = new RectOffset(8, 8, 8, 8);
+            sandboxLayout.childControlWidth = true;
+            sandboxLayout.childControlHeight = false;
+            sandboxLayout.childAlignment = TextAnchor.UpperLeft;
+
+            TMP_Text sandboxTitle = CreateLabel("SandboxTitle", sandboxMatchPanel.transform, "sandbox.title", 34f, FontStyles.Bold);
+            SetElementHeight(sandboxTitle.gameObject, 48f);
+
+            GameObject sandboxBotRow = CreateRow("SandboxBotCountRow", sandboxMatchPanel.transform);
+            SetElementHeight(sandboxBotRow, 58f);
+            TMP_Text botCountLabel = CreateLabel("SandboxBotCountLabel", sandboxBotRow.transform, "sandbox.bot_count", 24f, FontStyles.Normal);
+            LayoutElement botCountLabelLe = botCountLabel.gameObject.GetComponent<LayoutElement>();
+            botCountLabelLe.minWidth = 170f;
+            botCountLabelLe.preferredWidth = 170f;
+
+            Button sandboxBotsPrevButton = CreateSmallButton(sandboxBotRow.transform, "SandboxBotsPrevButton", "<", 64f, 54f);
+            TMP_Text sandboxBotCountValueText = CreatePlainLabel(sandboxBotRow.transform, "SandboxBotCountValueText", "3", 24f, FontStyles.Bold);
+            LayoutElement sandboxBotValueLe = sandboxBotCountValueText.gameObject.GetComponent<LayoutElement>();
+            sandboxBotValueLe.minWidth = 72f;
+            sandboxBotValueLe.preferredWidth = 72f;
+            sandboxBotCountValueText.alignment = TextAlignmentOptions.Center;
+            Button sandboxBotsNextButton = CreateSmallButton(sandboxBotRow.transform, "SandboxBotsNextButton", ">", 64f, 54f);
+
+            Button startSandboxMatchButton = CreateMenuButton(sandboxMatchPanel.transform, "StartSandboxMatchButton", "menu.start_match");
+            Button backFromSandboxMatchButton = CreateMenuButton(sandboxMatchPanel.transform, "BackFromSandboxMatchButton", "menu.back");
+
             BuildRightTankPanel(rightPanel.transform, out TankSelectionController tankSelectionController);
 
             MainMenuController controller = new GameObject("MainMenuController").AddComponent<MainMenuController>();
@@ -104,11 +134,17 @@ namespace TankGame.EditorTools
 
             controller.mainPanel = leftPanel;
             controller.settingsPanel = settingsPanel;
+            controller.sandboxMatchPanel = sandboxMatchPanel;
             controller.playButton = playButton;
             controller.sandboxButton = sandboxButton;
             controller.settingsButton = settingsButton;
             controller.exitButton = exitButton;
             controller.backFromSettingsButton = backSettingsButton;
+            controller.startSandboxMatchButton = startSandboxMatchButton;
+            controller.backFromSandboxMatchButton = backFromSandboxMatchButton;
+            controller.sandboxBotsPrevButton = sandboxBotsPrevButton;
+            controller.sandboxBotCountValueText = sandboxBotCountValueText;
+            controller.sandboxBotsNextButton = sandboxBotsNextButton;
 
             controller.masterSensitivitySlider = masterSens;
             controller.horizontalSensitivitySlider = horizontalSens;

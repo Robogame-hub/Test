@@ -12,9 +12,14 @@ namespace TankGame.Session
 
     public static class GameSessionSettings
     {
+        public const int MaxPlayers = 6;
+        public const int DefaultSoloBotCount = 3;
+        public const int DefaultSandboxBotCount = 3;
+
         private const string KeySelectedTankIndex = "Session.SelectedTankIndex";
         private const string KeyStartMode = "Session.StartMode";
         private const string KeySoloBotCount = "Session.SoloBotCount";
+        private const string KeySandboxBotCount = "Session.SandboxBotCount";
         private const string KeyPlayerNickname = "Session.PlayerNickname";
 
         public static int SelectedTankIndex
@@ -39,10 +44,20 @@ namespace TankGame.Session
 
         public static int SoloBotCount
         {
-            get => Mathf.Max(1, PlayerPrefs.GetInt(KeySoloBotCount, 3));
+            get => Mathf.Clamp(PlayerPrefs.GetInt(KeySoloBotCount, DefaultSoloBotCount), 0, MaxPlayers);
             set
             {
-                PlayerPrefs.SetInt(KeySoloBotCount, Mathf.Max(1, value));
+                PlayerPrefs.SetInt(KeySoloBotCount, Mathf.Clamp(value, 0, MaxPlayers));
+                PlayerPrefs.Save();
+            }
+        }
+
+        public static int SandboxBotCount
+        {
+            get => Mathf.Clamp(PlayerPrefs.GetInt(KeySandboxBotCount, DefaultSandboxBotCount), 0, MaxPlayers);
+            set
+            {
+                PlayerPrefs.SetInt(KeySandboxBotCount, Mathf.Clamp(value, 0, MaxPlayers));
                 PlayerPrefs.Save();
             }
         }
@@ -74,6 +89,13 @@ namespace TankGame.Session
 
         public static void PrepareSandbox()
         {
+            SandboxBotCount = DefaultSandboxBotCount;
+            StartMode = MatchStartMode.Sandbox;
+        }
+
+        public static void PrepareSandbox(int botCount)
+        {
+            SandboxBotCount = botCount;
             StartMode = MatchStartMode.Sandbox;
         }
     }

@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using TankGame.Session;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -12,13 +13,16 @@ namespace TankGame.Menu
     /// Runtime safety net for menu scenes:
     /// - ensures menu music exists in MainMenu/Lobby
     /// - ensures AudioListener exists in menu scenes
-    /// - wires Lobby BackButton even if LobbyController is missing in scene
+    /// - wires critical Lobby buttons if LobbyController is missing in scene
     /// </summary>
     public static class MenuSceneRuntimeBootstrap
     {
         private const string MainMenuSceneName = "MainMenu";
         private const string LobbySceneName = "Lobby";
+        private const string CoreSceneName = "Core";
+
         private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
+        private const string CoreScenePath = "Assets/Scenes/Core.unity";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InitAfterFirstSceneLoad()
@@ -45,8 +49,16 @@ namespace TankGame.Menu
             EnsureAudioListener();
             MenuMusicPlayer.EnsureInstance();
 
-            if (scene.name == LobbySceneName)
-                WireLobbyBackButton();
+            if (scene.name != LobbySceneName)
+                return;
+
+            // Do not duplicate normal flow if LobbyController is present.
+            LobbyController lobbyController = Object.FindObjectOfType<LobbyController>();
+            if (lobbyController != null)
+                return;
+
+            WireLobbyBackButton();
+            WireLobbyPlaySoloButton();
         }
 
         private static void EnsureAudioListener()
@@ -84,23 +96,48 @@ namespace TankGame.Menu
             backButton.onClick.AddListener(LoadMainMenu);
         }
 
+        private static void WireLobbyPlaySoloButton()
+        {
+            GameObject go = GameObject.Find("PlaySoloButton");
+            if (go == null)
+                return;
+
+            Button playSoloButton = go.GetComponent<Button>();
+            if (playSoloButton == null)
+                return;
+
+            playSoloButton.onClick.RemoveListener(PlaySoloFallback);
+            playSoloButton.onClick.AddListener(PlaySoloFallback);
+        }
+
+        private static void PlaySoloFallback()
+        {
+            GameSessionSettings.PrepareSolo(GameSessionSettings.MaxPlayers);
+            LoadSceneWithFallback(CoreSceneName, CoreScenePath, "MenuSceneRuntimeBootstrap");
+        }
+
         private static void LoadMainMenu()
         {
-            if (Application.CanStreamedLevelBeLoaded(MainMenuSceneName))
+            LoadSceneWithFallback(MainMenuSceneName, MainMenuScenePath, "MenuSceneRuntimeBootstrap");
+        }
+
+        private static void LoadSceneWithFallback(string sceneName, string scenePath, string logPrefix)
+        {
+            if (Application.CanStreamedLevelBeLoaded(sceneName))
             {
-                SceneManager.LoadScene(MainMenuSceneName);
+                SceneManager.LoadScene(sceneName);
                 return;
             }
 
 #if UNITY_EDITOR
-            if (File.Exists(MainMenuScenePath))
+            if (File.Exists(scenePath))
             {
-                EditorSceneManager.LoadSceneInPlayMode(MainMenuScenePath, new LoadSceneParameters(LoadSceneMode.Single));
+                EditorSceneManager.LoadSceneInPlayMode(scenePath, new LoadSceneParameters(LoadSceneMode.Single));
                 return;
             }
 #endif
 
-            Debug.LogError($"[MenuSceneRuntimeBootstrap] Cannot load '{MainMenuSceneName}'. Also missing fallback path '{MainMenuScenePath}'.");
+            Debug.LogError($"[{logPrefix}] Cannot load '{sceneName}'. Also missing fallback path '{scenePath}'.");
         }
     }
 }
