@@ -54,7 +54,7 @@ namespace TankGame.UI
         private void RefreshMovement()
         {
             if (tankMovement != null) return;
-            var player = TankRegistry.GetLocalPlayer();
+            var player = TankRuntime.GetLocalPlayer();
             if (player != null) tankMovement = player.Movement;
             if (tankMovement != null)
                 TryInitBars();
@@ -150,3 +150,4 @@ namespace TankGame.UI
         }
     }
 }
+

@@ -1,6 +1,7 @@
 using UnityEngine;
 using TankGame.Commands;
 using TankGame.Core;
+using TankGame.Network;
 using TankGame.Tank.Components;
 using UnityEngine.Events;
 
@@ -18,6 +19,13 @@ namespace TankGame.Tank
     [RequireComponent(typeof(TankAnnouncer))]
     public class TankController : MonoBehaviour
     {
+        public enum AuthorityMode
+        {
+            LocalOnly,
+            NetworkOwnerPredicted,
+            NetworkProxy
+        }
+
         [Header("Components")]
         [Tooltip("Компонент движения танка")]
         [SerializeField] private TankMovement movement;
@@ -41,6 +49,9 @@ namespace TankGame.Tank
         [Header("Player Settings")]
         [Tooltip("Является ли этот танк локальным игроком (управляется на этом клиенте)")]
         [SerializeField] private bool isLocalPlayer = true;
+        [SerializeField] private AuthorityMode authorityMode = AuthorityMode.LocalOnly;
+        [Tooltip("���������, ����������� INetworkAdapter")]
+        [SerializeField] private MonoBehaviour networkAdapterBehaviour;
 
         [Header("Weapon Switching")]
         [SerializeField] private WeaponType startWeapon = WeaponType.Cannon;
@@ -61,14 +72,15 @@ namespace TankGame.Tank
 
         [System.Serializable]
         public class WeaponChangedEvent : UnityEvent<WeaponType, TankWeapon> { }
+
         [Header("Events")]
         [SerializeField] private WeaponChangedEvent onWeaponChanged = new WeaponChangedEvent();
-        
+
         private TankInputCommand cachedInput;
         private WeaponType activeWeaponType = WeaponType.Cannon;
         private bool lowHpAnnounced;
+        private INetworkAdapter networkAdapter;
 
-        // Публичные свойства для доступа к компонентам
         public TankMovement Movement => movement;
         public TankTurret Turret => turret;
         public TankWeapon Weapon => weapon;
@@ -78,47 +90,52 @@ namespace TankGame.Tank
         public TankHealth Health => health;
         public bool IsLocalPlayer => isLocalPlayer;
         public WeaponChangedEvent OnWeaponChanged => onWeaponChanged;
+        public AuthorityMode CurrentAuthorityMode => authorityMode;
 
-        /// <summary>
-        /// Устанавливает, является ли танк локальным игроком (для сетевой игры)
-        /// </summary>
         public void SetIsLocalPlayer(bool isLocal)
         {
             isLocalPlayer = isLocal;
         }
 
+        public void SetAuthorityMode(AuthorityMode mode)
+        {
+            authorityMode = mode;
+        }
+
         private void Awake()
         {
             InitializeComponents();
+            ResolveNetworkAdapter();
         }
 
         private void OnEnable()
         {
-            TankRegistry.Register(this);
+            TankRuntime.Register(this);
+            SubscribeNetworkAdapter();
         }
 
         private void OnDisable()
         {
-            TankRegistry.Unregister(this);
+            UnsubscribeNetworkAdapter();
+            TankRuntime.Unregister(this);
         }
 
         private void Start()
         {
-            // Повторно применяем стартовый слот после инициализации всех компонентов.
-            // Это защищает от редких случаев, когда роли оружия/ссылки переопределяются позднее.
             SwitchWeapon(startWeapon, true);
         }
 
         private void InitializeComponents()
         {
-            // Получаем компоненты если не назначены
             if (movement == null)
                 movement = GetComponent<TankMovement>();
             if (turret == null)
                 turret = GetComponent<TankTurret>();
             if (weapon == null)
                 weapon = GetComponent<TankWeapon>();
+
             ResolveWeaponSlots();
+
             if (health == null)
                 health = GetComponent<TankHealth>();
             if (trackAnimation == null)
@@ -136,9 +153,41 @@ namespace TankGame.Tank
             SwitchWeapon(startWeapon, true);
         }
 
-        private void Update()
+        private void ResolveNetworkAdapter()
+        {
+            networkAdapter = networkAdapterBehaviour as INetworkAdapter;
+            if (networkAdapterBehaviour != null && networkAdapter == null)
+                Debug.LogWarning("[TankController] Assigned network adapter does not implement INetworkAdapter.");
+        }
+
+        private void SubscribeNetworkAdapter()
+        {
+            if (networkAdapter != null)
+                networkAdapter.OnRemoteCommand += HandleRemoteCommand;
+        }
+
+        private void UnsubscribeNetworkAdapter()
+        {
+            if (networkAdapter != null)
+                networkAdapter.OnRemoteCommand -= HandleRemoteCommand;
+        }
+
+        private bool ShouldReadLocalInput()
         {
             if (!isLocalPlayer)
+                return false;
+
+            return authorityMode == AuthorityMode.LocalOnly || authorityMode == AuthorityMode.NetworkOwnerPredicted;
+        }
+
+        private bool ShouldSimulateLocally()
+        {
+            return authorityMode != AuthorityMode.NetworkProxy;
+        }
+
+        private void Update()
+        {
+            if (!ShouldReadLocalInput())
                 return;
 
             if (inputHandler == null)
@@ -146,40 +195,51 @@ namespace TankGame.Tank
 
             ProcessLocalInput();
         }
-        
+
         private void FixedUpdate()
         {
-            if (!isLocalPlayer)
+            if (!ShouldSimulateLocally())
                 return;
-            
-            // Физика - используем ввод, собранный в Update (без повторного чтения Input)
+
             ProcessPhysicalMovement(cachedInput);
             trackAnimation?.UpdateTrackAnimation(cachedInput.VerticalInput, cachedInput.HorizontalInput);
-            
-            // Физика - выравнивание по земле
             movement.AlignToGround();
         }
 
-        /// <summary>
-        /// Обработка ввода локального игрока
-        /// </summary>
         private void ProcessLocalInput()
         {
             if (inputHandler == null)
                 return;
-            
+
             cachedInput = inputHandler.GetCurrentInput();
+
+            if (authorityMode == AuthorityMode.NetworkOwnerPredicted)
+            {
+                ProcessCommand(cachedInput);
+                networkAdapter?.SendInput(this, cachedInput);
+                return;
+            }
+
             ProcessCommand(cachedInput);
         }
 
-        /// <summary>
-        /// Обработка команды (может быть локальной или сетевой)
-        /// </summary>
+        private void HandleRemoteCommand(TankController sourceTank, TankInputCommand command)
+        {
+            if (sourceTank != this)
+                return;
+
+            if (authorityMode == AuthorityMode.LocalOnly || authorityMode == AuthorityMode.NetworkOwnerPredicted)
+                return;
+
+            cachedInput = command;
+            ProcessCommand(command);
+        }
+
         public void ProcessCommand(TankInputCommand command)
         {
+            ApplyAimData(command);
             HandleWeaponSwitchCommand(command);
 
-            // Прицеливание
             if (command.IsAiming)
             {
                 if (!turret.IsAiming)
@@ -194,14 +254,12 @@ namespace TankGame.Tank
                     turret.StopAiming();
             }
 
-            // Перезарядка
             if (command.IsReloadRequested)
             {
                 if (weapon.TryReload())
                     announcer?.TryPlayReloading();
             }
 
-            // Стрельба
             if (activeWeaponType == WeaponType.MachineGun)
             {
                 ProcessMachineGunFire(command);
@@ -222,13 +280,25 @@ namespace TankGame.Tank
                 AnnounceAmmoStatus(weapon);
             }
         }
-        
-        /// <summary>
-        /// Обработка физического движения (вызывается в FixedUpdate)
-        /// </summary>
+
+        private void ApplyAimData(TankInputCommand command)
+        {
+            turret?.SetCameraYawInput(command.CameraYawDelta);
+
+            if (command.HasAimPoint)
+            {
+                turret?.SetAimPoint(command.AimPoint);
+                weapon?.SetAimPoint(command.AimPoint);
+            }
+            else
+            {
+                turret?.ClearAimPoint();
+                weapon?.ClearAimPoint();
+            }
+        }
+
         private void ProcessPhysicalMovement(TankInputCommand command)
         {
-            // Движение танка (ФИЗИКА - только в FixedUpdate!)
             movement.ApplyMovement(command.VerticalInput, command.HorizontalInput, command.IsBoosting);
         }
 
@@ -239,13 +309,11 @@ namespace TankGame.Tank
             else if (command.WeaponSlot == 2)
                 SwitchWeapon(WeaponType.MachineGun);
 
-            // Смена оружия колёсиком мыши (просто переключаемся между двумя слотами)
             if (command.WeaponScrollDelta != 0)
             {
-                WeaponType nextWeapon =
-                    activeWeaponType == WeaponType.Cannon
-                        ? WeaponType.MachineGun
-                        : WeaponType.Cannon;
+                WeaponType nextWeapon = activeWeaponType == WeaponType.Cannon
+                    ? WeaponType.MachineGun
+                    : WeaponType.Cannon;
                 SwitchWeapon(nextWeapon);
             }
         }
@@ -304,7 +372,7 @@ namespace TankGame.Tank
                 return false;
 
             Vector3 origin = weapon.FirePoint.position;
-            Vector3 aimPoint = turret.GetAimPointFromMouse();
+            Vector3 aimPoint = turret.GetAimPoint();
             Vector3 direction = aimPoint - origin;
             float distance = direction.magnitude;
 
@@ -383,25 +451,6 @@ namespace TankGame.Tank
                 return;
 
             weaponSwitchAudioSource.PlayOneShot(weaponSwitchSound, weaponSwitchVolume);
-        }
-
-        private TankWeapon FindAlternativeWeapon(TankWeapon primaryWeapon)
-        {
-            TankWeapon[] localWeapons = GetComponents<TankWeapon>();
-            for (int i = 0; i < localWeapons.Length; i++)
-            {
-                if (localWeapons[i] != null && localWeapons[i] != primaryWeapon)
-                    return localWeapons[i];
-            }
-
-            TankWeapon[] childWeapons = GetComponentsInChildren<TankWeapon>(true);
-            for (int i = 0; i < childWeapons.Length; i++)
-            {
-                if (childWeapons[i] != null && childWeapons[i] != primaryWeapon)
-                    return childWeapons[i];
-            }
-
-            return null;
         }
 
         private void ResolveWeaponSlots()
@@ -494,18 +543,15 @@ namespace TankGame.Tank
                 health.OnHealthChanged.RemoveListener(HandleHealthChanged);
         }
 
-
         #region Debug
 
         private void OnDrawGizmos()
         {
             if (movement != null && Application.isPlaying)
             {
-                // Отображаем направление танка
                 Gizmos.color = Color.green;
                 Gizmos.DrawRay(transform.position, transform.forward * 2f);
 
-                // Отображаем направление башни
                 if (turret != null && turret.Turret != null)
                 {
                     Gizmos.color = Color.red;
@@ -517,4 +563,3 @@ namespace TankGame.Tank
         #endregion
     }
 }
-

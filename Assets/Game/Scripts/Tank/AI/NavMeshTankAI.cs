@@ -132,9 +132,9 @@ namespace TankGame.Tank.AI
             }
 
             Vector3 aimPoint = GetTargetAimPoint(target);
-            turret.SetExternalAimPoint(aimPoint);
+            turret.SetAimPoint(aimPoint);
             TankWeapon activeWeapon = GetActiveWeapon();
-            activeWeapon?.SetExternalAimPoint(aimPoint);
+            activeWeapon?.SetAimPoint(aimPoint);
 
             if (!turret.IsAiming)
                 turret.StartAiming();
@@ -177,7 +177,7 @@ namespace TankGame.Tank.AI
                 return;
 
             nextTargetSearchTime = Time.time + Mathf.Max(0.1f, targetSearchInterval);
-            TankController localPlayer = TankRegistry.GetLocalPlayer();
+            TankController localPlayer = TankRuntime.GetLocalPlayer();
             if (localPlayer == null || localPlayer == tankController)
                 return;
 
@@ -261,7 +261,7 @@ namespace TankGame.Tank.AI
         private Vector3 GetSeparationFromOtherBots()
         {
             if (minDistanceToOtherBots <= 0f) return Vector3.zero;
-            var all = TankRegistry.GetAllTanks();
+            var all = TankRuntime.GetAllTanks();
             Vector3 sum = Vector3.zero;
             int count = 0;
             Vector3 myPos = transform.position;
@@ -288,7 +288,7 @@ namespace TankGame.Tank.AI
         private float GetDistanceToNearestOtherBot()
         {
             if (minDistanceToOtherBots <= 0f) return -1f;
-            var all = TankRegistry.GetAllTanks();
+            var all = TankRuntime.GetAllTanks();
             float minSq = float.MaxValue;
             Vector3 myPos = transform.position;
             myPos.y = 0f;
@@ -401,12 +401,13 @@ namespace TankGame.Tank.AI
             if (agent != null && agent.isOnNavMesh && agent.hasPath)
                 agent.ResetPath();
 
-            turret?.ClearExternalAimPoint();
+            turret?.ClearAimPoint();
             TankWeapon activeWeapon = GetActiveWeapon();
-            activeWeapon?.ClearExternalAimPoint();
+            activeWeapon?.ClearAimPoint();
 
             if (turret != null && turret.IsAiming)
                 turret.StopAiming();
         }
     }
 }
+

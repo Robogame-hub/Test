@@ -30,7 +30,7 @@ namespace TankGame.UI
 
             if (tankEngine == null)
             {
-                var localPlayer = TankRegistry.GetLocalPlayer();
+                var localPlayer = TankRuntime.GetLocalPlayer();
                 if (localPlayer != null)
                     tankEngine = localPlayer.GetComponent<TankEngine>();
             }
@@ -54,4 +54,5 @@ namespace TankGame.UI
         }
     }
 }
+
 

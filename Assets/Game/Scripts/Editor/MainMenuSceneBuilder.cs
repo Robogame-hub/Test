@@ -1,0 +1,620 @@
+#if UNITY_EDITOR
+using System.Collections.Generic;
+using TankGame.Menu;
+using TMPro;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+namespace TankGame.EditorTools
+{
+    public static class MainMenuSceneBuilder
+    {
+        private static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.45f);
+        private static readonly Color ButtonColor = new Color(0f, 0f, 0f, 0.65f);
+        private static readonly Color TextGreen = new Color32(0x0F, 0xF3, 0x00, 0xFF);
+
+        [MenuItem("TankGame/Scenes/Create MainMenu + Lobby")]
+        public static void CreateMainAndLobbyScenes()
+        {
+            CreateMainMenuScene();
+            CreateLobbyScene();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[MainMenuSceneBuilder] Created/updated MainMenu and Lobby scenes.");
+        }
+
+        [MenuItem("TankGame/Scenes/Create MainMenu")]
+        public static void CreateMainMenuScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "MainMenu";
+
+            EnsureEventSystem();
+            CreateCamera();
+
+            Canvas canvas = CreateCanvas("MainMenuCanvas");
+
+            GameObject leftPanel = CreatePanel("LeftPanel", canvas.transform, new Vector2(0f, 0f), new Vector2(0.4f, 1f));
+            GameObject rightPanel = CreatePanel("RightPanel", canvas.transform, new Vector2(0.4f, 0f), new Vector2(1f, 1f));
+
+            VerticalLayoutGroup leftLayout = leftPanel.AddComponent<VerticalLayoutGroup>();
+            leftLayout.childAlignment = TextAnchor.MiddleLeft;
+            leftLayout.spacing = 16f;
+            leftLayout.padding = new RectOffset(48, 16, 60, 60);
+            leftLayout.childControlWidth = true;
+            leftLayout.childControlHeight = false;
+
+            ContentSizeFitter fitter = leftPanel.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+            TMP_Text title = CreateLabel("Title", leftPanel.transform, "menu.title", 64f, FontStyles.Bold);
+            SetElementHeight(title.gameObject, 90f);
+
+            Button playButton = CreateMenuButton(leftPanel.transform, "PlayButton", "menu.play");
+            Button sandboxButton = CreateMenuButton(leftPanel.transform, "SandboxButton", "menu.sandbox");
+            Button settingsButton = CreateMenuButton(leftPanel.transform, "SettingsButton", "menu.settings");
+            Button exitButton = CreateMenuButton(leftPanel.transform, "ExitButton", "menu.exit");
+
+            GameObject settingsPanel = CreatePanel("SettingsPanel", leftPanel.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            settingsPanel.SetActive(false);
+            VerticalLayoutGroup settingsLayout = settingsPanel.AddComponent<VerticalLayoutGroup>();
+            settingsLayout.spacing = 8f;
+            settingsLayout.padding = new RectOffset(8, 8, 8, 8);
+            settingsLayout.childControlWidth = true;
+            settingsLayout.childControlHeight = false;
+            settingsLayout.childAlignment = TextAnchor.UpperLeft;
+
+            TMP_Text settingsTitle = CreateLabel("SettingsTitle", settingsPanel.transform, "settings.title", 34f, FontStyles.Bold);
+            SetElementHeight(settingsTitle.gameObject, 48f);
+
+            TMP_Text sensHeader = CreateLabel("SensitivityHeader", settingsPanel.transform, "settings.sensitivity", 26f, FontStyles.Bold);
+            SetElementHeight(sensHeader.gameObject, 34f);
+            TMP_Text ms = CreateLabel("MasterSensLabel", settingsPanel.transform, "settings.master_sens", 22f, FontStyles.Normal);
+            Slider masterSens = CreateSlider("MasterSensSlider", settingsPanel.transform);
+            TMP_Text hs = CreateLabel("HorizontalSensLabel", settingsPanel.transform, "settings.horizontal_sens", 22f, FontStyles.Normal);
+            Slider horizontalSens = CreateSlider("HorizontalSensSlider", settingsPanel.transform);
+            TMP_Text vs = CreateLabel("VerticalSensLabel", settingsPanel.transform, "settings.vertical_sens", 22f, FontStyles.Normal);
+            Slider verticalSens = CreateSlider("VerticalSensSlider", settingsPanel.transform);
+
+            TMP_Text soundHeader = CreateLabel("SoundHeader", settingsPanel.transform, "settings.sound", 26f, FontStyles.Bold);
+            SetElementHeight(soundHeader.gameObject, 34f);
+            TMP_Text mv = CreateLabel("MasterVolumeLabel", settingsPanel.transform, "settings.master_volume", 22f, FontStyles.Normal);
+            Slider masterVol = CreateSlider("MasterVolumeSlider", settingsPanel.transform);
+            TMP_Text musicV = CreateLabel("MusicVolumeLabel", settingsPanel.transform, "settings.music_volume", 22f, FontStyles.Normal);
+            Slider musicVol = CreateSlider("MusicVolumeSlider", settingsPanel.transform);
+            TMP_Text sfxV = CreateLabel("SfxVolumeLabel", settingsPanel.transform, "settings.sfx_volume", 22f, FontStyles.Normal);
+            Slider sfxVol = CreateSlider("SfxVolumeSlider", settingsPanel.transform);
+
+            TMP_Text langLabel = CreateLabel("LanguageLabel", settingsPanel.transform, "settings.language", 22f, FontStyles.Normal);
+            GameObject langRow = CreateRow("LanguageRow", settingsPanel.transform);
+            Button prevLang = CreateSmallButton(langRow.transform, "LangPrev", "<");
+            TMP_Text langValue = CreatePlainLabel(langRow.transform, "LanguageValue", "Русский", 22f, FontStyles.Bold);
+            Button nextLang = CreateSmallButton(langRow.transform, "LangNext", ">");
+
+            Button backSettingsButton = CreateMenuButton(settingsPanel.transform, "BackFromSettingsButton", "menu.back");
+
+            BuildRightTankPanel(rightPanel.transform, out TankSelectionController tankSelectionController);
+
+            MainMenuController controller = new GameObject("MainMenuController").AddComponent<MainMenuController>();
+            controller.transform.SetParent(canvas.transform, false);
+
+            controller.mainPanel = leftPanel;
+            controller.settingsPanel = settingsPanel;
+            controller.playButton = playButton;
+            controller.sandboxButton = sandboxButton;
+            controller.settingsButton = settingsButton;
+            controller.exitButton = exitButton;
+            controller.backFromSettingsButton = backSettingsButton;
+
+            controller.masterSensitivitySlider = masterSens;
+            controller.horizontalSensitivitySlider = horizontalSens;
+            controller.verticalSensitivitySlider = verticalSens;
+
+            controller.masterVolumeSlider = masterVol;
+            controller.musicVolumeSlider = musicVol;
+            controller.sfxVolumeSlider = sfxVol;
+
+            controller.languagePrevButton = prevLang;
+            controller.languageNextButton = nextLang;
+            controller.languageValueText = langValue;
+            controller.tankSelection = tankSelectionController;
+
+            string tankPrefabPath = "Assets/Game/Prefab/TANK_1 (1).prefab";
+            GameObject tankPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(tankPrefabPath);
+            if (tankPrefab != null && tankSelectionController != null)
+            {
+                tankSelectionController.tanks = new List<TankDefinition>
+                {
+                    new TankDefinition
+                    {
+                        displayName = "TANK 1",
+                        playerPrefab = tankPrefab,
+                        speed = 0.55f,
+                        armor = 0.65f,
+                        firepower = 0.70f,
+                        handling = 0.50f
+                    }
+                };
+            }
+
+            SetupMenuMusic();
+
+            string scenePath = "Assets/Scenes/MainMenu.unity";
+            EditorSceneManager.SaveScene(scene, scenePath);
+        }
+
+        [MenuItem("TankGame/Scenes/Create Lobby")]
+        public static void CreateLobbyScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "Lobby";
+
+            EnsureEventSystem();
+            CreateCamera();
+
+            Canvas canvas = CreateCanvas("LobbyCanvas");
+
+            GameObject root = CreatePanel("LobbyRoot", canvas.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            VerticalLayoutGroup rootLayout = root.AddComponent<VerticalLayoutGroup>();
+            rootLayout.padding = new RectOffset(40, 40, 40, 40);
+            rootLayout.spacing = 12f;
+            rootLayout.childAlignment = TextAnchor.UpperLeft;
+            rootLayout.childControlWidth = true;
+            rootLayout.childControlHeight = false;
+
+            TMP_Text title = CreateLabel("LobbyTitle", root.transform, "lobby.title", 46f, FontStyles.Bold);
+            SetElementHeight(title.gameObject, 62f);
+
+            TMP_Text roomsLabel = CreateLabel("RoomsLabel", root.transform, "lobby.rooms", 30f, FontStyles.Bold);
+            SetElementHeight(roomsLabel.gameObject, 40f);
+
+            GameObject nickRow = CreateRow("NicknameRow", root.transform);
+            TMP_Text nickLabel = CreateLabel("NicknameLabel", nickRow.transform, "lobby.nickname", 22f, FontStyles.Normal);
+            LayoutElement nickLabelLE = nickLabel.gameObject.AddComponent<LayoutElement>();
+            nickLabelLE.preferredWidth = 140f;
+            nickLabelLE.minWidth = 140f;
+            TMP_InputField nicknameInput = CreateInputField("NicknameInput", nickRow.transform, 360f, 44f);
+
+            GameObject scrollRoot = CreatePanel("RoomList", root.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            SetElementHeight(scrollRoot, 420f);
+            ScrollRect scrollRect = scrollRoot.AddComponent<ScrollRect>();
+            Image scrollBg = scrollRoot.GetComponent<Image>();
+            scrollBg.color = new Color(0f, 0f, 0f, 0.2f);
+
+            GameObject viewport = CreatePanel("Viewport", scrollRoot.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            viewport.AddComponent<Mask>().showMaskGraphic = false;
+            Image vpImg = viewport.GetComponent<Image>();
+            vpImg.color = new Color(1f, 1f, 1f, 0.05f);
+
+            GameObject content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(viewport.transform, false);
+            RectTransform contentRt = content.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.offsetMin = new Vector2(8f, 0f);
+            contentRt.offsetMax = new Vector2(-8f, 0f);
+            VerticalLayoutGroup contentLayout = content.AddComponent<VerticalLayoutGroup>();
+            contentLayout.spacing = 8f;
+            contentLayout.childControlWidth = true;
+            contentLayout.childControlHeight = false;
+            contentLayout.childAlignment = TextAnchor.UpperLeft;
+            ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
+            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.viewport = viewport.GetComponent<RectTransform>();
+            scrollRect.content = contentRt;
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+
+            TMP_Text noRoomsText = CreateLabel("NoRooms", root.transform, "lobby.no_rooms", 22f, FontStyles.Normal);
+            SetElementHeight(noRoomsText.gameObject, 32f);
+
+            GameObject buttonsRow = CreateRow("ButtonsRow", root.transform);
+            Button refreshButton = CreateMenuButton(buttonsRow.transform, "RefreshButton", "lobby.refresh", 220f, 60f);
+            Button createRoomButton = CreateMenuButton(buttonsRow.transform, "CreateButton", "lobby.create_room", 280f, 60f);
+            Button playSoloButton = CreateMenuButton(buttonsRow.transform, "PlaySoloButton", "lobby.play_solo", 240f, 60f);
+            Button backButton = CreateMenuButton(buttonsRow.transform, "BackButton", "menu.back", 180f, 60f);
+
+            GameObject roomEntryTemplate = CreateRoomEntryTemplate(content.transform);
+            roomEntryTemplate.SetActive(false);
+
+            LobbyController lobby = new GameObject("LobbyController").AddComponent<LobbyController>();
+            lobby.transform.SetParent(canvas.transform, false);
+            lobby.roomListContainer = content.transform;
+            lobby.roomEntryPrefab = roomEntryTemplate;
+            lobby.emptyRoomsText = noRoomsText;
+            lobby.refreshButton = refreshButton;
+            lobby.nicknameInputField = nicknameInput;
+            lobby.createRoomButton = createRoomButton;
+            lobby.playSoloButton = playSoloButton;
+            lobby.backButton = backButton;
+
+            SetupMenuMusic();
+
+            string scenePath = "Assets/Scenes/Lobby.unity";
+            EditorSceneManager.SaveScene(scene, scenePath);
+        }
+
+        private static void BuildRightTankPanel(Transform parent, out TankSelectionController tankSelection)
+        {
+            GameObject container = CreatePanel("TankPanel", parent, new Vector2(0.03f, 0.08f), new Vector2(0.97f, 0.92f));
+            VerticalLayoutGroup layout = container.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(20, 20, 20, 20);
+            layout.spacing = 14f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = false;
+            layout.childAlignment = TextAnchor.UpperCenter;
+
+            TMP_Text header = CreateLabel("TankSelectTitle", container.transform, "tank.select", 34f, FontStyles.Bold);
+            SetElementHeight(header.gameObject, 48f);
+
+            GameObject selectorRow = CreateRow("TankSelectorRow", container.transform);
+            Button prev = CreateSmallButton(selectorRow.transform, "PrevTank", "<", 80f, 80f);
+            TMP_Text tankName = CreatePlainLabel(selectorRow.transform, "TankName", "TANK 1", 30f, FontStyles.Bold);
+            Button next = CreateSmallButton(selectorRow.transform, "NextTank", ">", 80f, 80f);
+
+            Image preview = CreateImage("TankPreview", container.transform, new Color(0f, 0f, 0f, 0.25f));
+            SetElementHeight(preview.gameObject, 260f);
+
+            Image speedFill = CreateStatRow(container.transform, "tank.speed");
+            Image armorFill = CreateStatRow(container.transform, "tank.armor");
+            Image fireFill = CreateStatRow(container.transform, "tank.firepower");
+            Image handlingFill = CreateStatRow(container.transform, "tank.handling");
+
+            tankSelection = new GameObject("TankSelectionController").AddComponent<TankSelectionController>();
+            tankSelection.transform.SetParent(container.transform, false);
+            tankSelection.previousButton = prev;
+            tankSelection.nextButton = next;
+            tankSelection.tankNameText = tankName;
+            tankSelection.tankPreviewImage = preview;
+            tankSelection.speedFill = speedFill;
+            tankSelection.armorFill = armorFill;
+            tankSelection.firepowerFill = fireFill;
+            tankSelection.handlingFill = handlingFill;
+        }
+
+        private static void SetupMenuMusic()
+        {
+            GameObject musicObj = new GameObject("MenuMusic", typeof(AudioSource), typeof(MenuMusicPlayer));
+            AudioSource source = musicObj.GetComponent<AudioSource>();
+            source.loop = true;
+            source.playOnAwake = false;
+            source.spatialBlend = 0f;
+
+            MenuMusicPlayer player = musicObj.GetComponent<MenuMusicPlayer>();
+            AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Game/AmbientAydio/steel_ambient_1.mp3");
+            if (clip != null)
+            {
+                SerializedObject so = new SerializedObject(player);
+                SerializedProperty clipProp = so.FindProperty("menuMusicClip");
+                clipProp.objectReferenceValue = clip;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+        private static Image CreateStatRow(Transform parent, string key)
+        {
+            GameObject row = CreateRow($"{key}_Row", parent);
+            CreateLabel($"{key}_Label", row.transform, key, 20f, FontStyles.Normal);
+
+            GameObject barRoot = CreatePanel("BarRoot", row.transform, new Vector2(0f, 0f), new Vector2(0f, 1f));
+            RectTransform barRt = barRoot.GetComponent<RectTransform>();
+            barRt.sizeDelta = new Vector2(320f, 20f);
+            Image barBg = barRoot.GetComponent<Image>();
+            barBg.color = new Color(1f, 1f, 1f, 0.2f);
+
+            GameObject fillObj = CreatePanel("Fill", barRoot.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            Image fill = fillObj.GetComponent<Image>();
+            fill.type = Image.Type.Filled;
+            fill.fillMethod = Image.FillMethod.Horizontal;
+            fill.fillAmount = 0.5f;
+            fill.color = TextGreen;
+            return fill;
+        }
+
+        private static GameObject CreateRoomEntryTemplate(Transform parent)
+        {
+            GameObject row = CreateRow("RoomEntryTemplate", parent);
+            SetElementHeight(row, 56f);
+            Image bg = row.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.35f);
+
+            HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12f;
+            layout.padding = new RectOffset(12, 12, 8, 8);
+            layout.childControlWidth = false;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+
+            TMP_Text roomName = CreatePlainLabel(row.transform, "RoomName", "Room 1", 20f, FontStyles.Normal);
+            LayoutElement nameLe = roomName.gameObject.AddComponent<LayoutElement>();
+            nameLe.minWidth = 420f;
+            nameLe.preferredWidth = 420f;
+
+            Button join = CreateMenuButton(row.transform, "JoinButton", "lobby.join", 160f, 38f);
+            return row;
+        }
+
+        private static Canvas CreateCanvas(string name)
+        {
+            GameObject go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            Canvas canvas = go.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            CanvasScaler scaler = go.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+            return canvas;
+        }
+
+        private static void EnsureEventSystem()
+        {
+            if (Object.FindObjectOfType<EventSystem>() != null)
+                return;
+
+            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        }
+
+        private static void CreateCamera()
+        {
+            GameObject cam = new GameObject("Main Camera", typeof(Camera));
+            cam.tag = "MainCamera";
+            Camera camera = cam.GetComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.06f, 0.08f, 0.1f, 1f);
+            camera.orthographic = true;
+            camera.orthographicSize = 5f;
+            cam.transform.position = new Vector3(0f, 0f, -10f);
+        }
+
+        private static GameObject CreatePanel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            RectTransform rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchorMin;
+            rt.anchorMax = anchorMax;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            Image img = go.GetComponent<Image>();
+            img.color = PanelColor;
+            return go;
+        }
+
+        private static GameObject CreateRow(string name, Transform parent)
+        {
+            GameObject row = new GameObject(name, typeof(RectTransform));
+            row.transform.SetParent(parent, false);
+            HorizontalLayoutGroup h = row.AddComponent<HorizontalLayoutGroup>();
+            h.spacing = 10f;
+            h.childControlHeight = true;
+            h.childControlWidth = false;
+            h.childForceExpandWidth = false;
+            h.childForceExpandHeight = false;
+            h.childAlignment = TextAnchor.MiddleLeft;
+            SetElementHeight(row, 48f);
+            return row;
+        }
+
+        private static TMP_Text CreateLabel(string name, Transform parent, string key, float fontSize, FontStyles style)
+        {
+            TMP_Text label = CreatePlainLabel(parent, name, LocalizationService.Get(key), fontSize, style);
+            LocalizedText localized = label.gameObject.AddComponent<LocalizedText>();
+            localized.SetKey(key);
+            return label;
+        }
+
+        private static TMP_Text CreatePlainLabel(Transform parent, string name, string text, float fontSize, FontStyles style)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+            go.transform.SetParent(parent, false);
+            TMP_Text label = go.GetComponent<TMP_Text>();
+            label.text = text;
+            label.fontSize = fontSize;
+            label.fontStyle = style;
+            label.color = TextGreen;
+            label.alignment = TextAlignmentOptions.MidlineLeft;
+            LayoutElement le = go.AddComponent<LayoutElement>();
+            le.preferredHeight = Mathf.Max(32f, fontSize + 8f);
+            le.minHeight = Mathf.Max(32f, fontSize + 8f);
+            return label;
+        }
+
+        private static Button CreateMenuButton(Transform parent, string name, string localizationKey, float width = 360f, float height = 74f)
+        {
+            Button button = CreateButtonBase(parent, name, width, height);
+            TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
+            text.text = LocalizationService.Get(localizationKey);
+            LocalizedText localized = text.gameObject.AddComponent<LocalizedText>();
+            localized.SetKey(localizationKey);
+            return button;
+        }
+
+        private static Button CreateSmallButton(Transform parent, string name, string text, float width = 52f, float height = 52f)
+        {
+            Button button = CreateButtonBase(parent, name, width, height);
+            TMP_Text tmp = button.GetComponentInChildren<TMP_Text>(true);
+            tmp.text = text;
+            return button;
+        }
+
+        private static Button CreateButtonBase(Transform parent, string name, float width, float height)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            RectTransform rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(width, height);
+            Image image = go.GetComponent<Image>();
+            image.color = ButtonColor;
+
+            ColorBlock colors = go.GetComponent<Button>().colors;
+            colors.normalColor = ButtonColor;
+            colors.highlightedColor = new Color(ButtonColor.r + 0.1f, ButtonColor.g + 0.1f, ButtonColor.b + 0.1f, 0.9f);
+            colors.pressedColor = new Color(ButtonColor.r + 0.2f, ButtonColor.g + 0.2f, ButtonColor.b + 0.2f, 1f);
+            go.GetComponent<Button>().colors = colors;
+
+            GameObject textObj = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            textObj.transform.SetParent(go.transform, false);
+            RectTransform textRt = textObj.GetComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            TMP_Text tmp = textObj.GetComponent<TMP_Text>();
+            tmp.text = name;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontSize = Mathf.Max(20f, height * 0.34f);
+            tmp.color = TextGreen;
+
+            LayoutElement le = go.AddComponent<LayoutElement>();
+            le.preferredWidth = width;
+            le.minWidth = width;
+            le.preferredHeight = height;
+            le.minHeight = height;
+
+            return go.GetComponent<Button>();
+        }
+
+        private static TMP_InputField CreateInputField(string name, Transform parent, float width = 320f, float height = 42f)
+        {
+            GameObject root = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
+            root.transform.SetParent(parent, false);
+            RectTransform rootRt = root.GetComponent<RectTransform>();
+            rootRt.sizeDelta = new Vector2(width, height);
+
+            Image bg = root.GetComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.55f);
+
+            GameObject textViewport = new GameObject("TextViewport", typeof(RectTransform), typeof(RectMask2D));
+            textViewport.transform.SetParent(root.transform, false);
+            RectTransform viewportRt = textViewport.GetComponent<RectTransform>();
+            viewportRt.anchorMin = Vector2.zero;
+            viewportRt.anchorMax = Vector2.one;
+            viewportRt.offsetMin = new Vector2(10f, 6f);
+            viewportRt.offsetMax = new Vector2(-10f, -6f);
+
+            GameObject textObj = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            textObj.transform.SetParent(textViewport.transform, false);
+            RectTransform textRt = textObj.GetComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI text = textObj.GetComponent<TextMeshProUGUI>();
+            text.text = string.Empty;
+            text.fontSize = 22f;
+            text.color = TextGreen;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
+
+            GameObject placeholderObj = new GameObject("Placeholder", typeof(RectTransform), typeof(TextMeshProUGUI));
+            placeholderObj.transform.SetParent(textViewport.transform, false);
+            RectTransform placeholderRt = placeholderObj.GetComponent<RectTransform>();
+            placeholderRt.anchorMin = Vector2.zero;
+            placeholderRt.anchorMax = Vector2.one;
+            placeholderRt.offsetMin = Vector2.zero;
+            placeholderRt.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI placeholder = placeholderObj.GetComponent<TextMeshProUGUI>();
+            placeholder.text = "Player";
+            placeholder.fontSize = 22f;
+            placeholder.color = new Color(TextGreen.r, TextGreen.g, TextGreen.b, 0.45f);
+            placeholder.alignment = TextAlignmentOptions.MidlineLeft;
+
+            TMP_InputField input = root.GetComponent<TMP_InputField>();
+            input.textViewport = viewportRt;
+            input.textComponent = text;
+            input.placeholder = placeholder;
+            input.characterLimit = 24;
+
+            LayoutElement le = root.AddComponent<LayoutElement>();
+            le.preferredWidth = width;
+            le.minWidth = width;
+            le.preferredHeight = height;
+            le.minHeight = height;
+
+            return input;
+        }
+        private static Slider CreateSlider(string name, Transform parent)
+        {
+            GameObject root = new GameObject(name, typeof(RectTransform), typeof(Slider));
+            root.transform.SetParent(parent, false);
+            RectTransform rt = root.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(0f, 28f);
+
+            GameObject bg = CreatePanel("Background", root.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            bg.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
+
+            GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+            fillArea.transform.SetParent(root.transform, false);
+            RectTransform fillAreaRt = fillArea.GetComponent<RectTransform>();
+            fillAreaRt.anchorMin = new Vector2(0f, 0f);
+            fillAreaRt.anchorMax = new Vector2(1f, 1f);
+            fillAreaRt.offsetMin = new Vector2(10f, 4f);
+            fillAreaRt.offsetMax = new Vector2(-10f, -4f);
+
+            GameObject fill = CreatePanel("Fill", fillArea.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
+            Image fillImg = fill.GetComponent<Image>();
+            fillImg.color = TextGreen;
+
+            GameObject handle = CreatePanel("Handle", root.transform, new Vector2(0f, 0f), new Vector2(0f, 1f));
+            RectTransform handleRt = handle.GetComponent<RectTransform>();
+            handleRt.sizeDelta = new Vector2(16f, 0f);
+            handle.GetComponent<Image>().color = TextGreen;
+
+            Slider slider = root.GetComponent<Slider>();
+            slider.fillRect = fill.GetComponent<RectTransform>();
+            slider.handleRect = handleRt;
+            slider.targetGraphic = handle.GetComponent<Image>();
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.value = 0.5f;
+
+            LayoutElement le = root.AddComponent<LayoutElement>();
+            le.preferredHeight = 30f;
+            le.minHeight = 30f;
+
+            return slider;
+        }
+
+        private static Image CreateImage(string name, Transform parent, Color color)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            Image image = go.GetComponent<Image>();
+            image.color = color;
+            LayoutElement le = go.AddComponent<LayoutElement>();
+            le.preferredHeight = 200f;
+            le.minHeight = 200f;
+            return image;
+        }
+
+        private static void SetElementHeight(GameObject go, float height)
+        {
+            LayoutElement le = go.GetComponent<LayoutElement>();
+            if (le == null)
+                le = go.AddComponent<LayoutElement>();
+            le.preferredHeight = height;
+            le.minHeight = height;
+        }
+    }
+}
+#endif
+
+
+
+
+
+
+
+
+
+

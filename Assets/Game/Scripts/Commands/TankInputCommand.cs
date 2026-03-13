@@ -21,6 +21,9 @@ namespace TankGame.Commands
         public bool IsBoosting;
         public int WeaponSlot;
         public int WeaponScrollDelta;
+        public bool HasAimPoint;
+        public Vector3 AimPoint;
+        public float CameraYawDelta;
 
         public TankInputCommand(
             float vertical,
@@ -34,7 +37,10 @@ namespace TankGame.Commands
             bool isFiringPressed = false,
             bool isFiringHeld = false,
             bool isFiringReleased = false,
-            int weaponScrollDelta = 0)
+            int weaponScrollDelta = 0,
+            bool hasAimPoint = false,
+            Vector3 aimPoint = default,
+            float cameraYawDelta = 0f)
         {
             Timestamp = Time.time;
             VerticalInput = vertical;
@@ -49,7 +55,9 @@ namespace TankGame.Commands
             IsBoosting = isBoosting;
             WeaponSlot = weaponSlot;
             WeaponScrollDelta = weaponScrollDelta;
+            HasAimPoint = hasAimPoint;
+            AimPoint = aimPoint;
+            CameraYawDelta = cameraYawDelta;
         }
     }
 }
-

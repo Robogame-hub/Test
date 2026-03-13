@@ -161,7 +161,7 @@ namespace TankGame.UI
         private void FindPlayerIfNeeded()
         {
             if (playerTarget != null) return;
-            var local = TankRegistry.GetLocalPlayer();
+            var local = TankRuntime.GetLocalPlayer();
             if (local != null)
                 playerTarget = local.transform;
             if (playerTarget == null)
@@ -229,7 +229,7 @@ namespace TankGame.UI
             // Боты: из реестра (без FindObjectsOfType каждый кадр)
             if (showBots && _botIconPool.Count > 0)
             {
-                var allTanks = TankRegistry.GetAllTanks();
+                var allTanks = TankRuntime.GetAllTanks();
                 int used = 0;
                 for (int i = 0; i < allTanks.Count; i++)
                 {
@@ -288,3 +288,4 @@ namespace TankGame.UI
 #endif
     }
 }
+

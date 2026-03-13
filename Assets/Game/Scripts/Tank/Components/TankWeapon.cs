@@ -283,7 +283,7 @@ namespace TankGame.Tank.Components
             }
             
             spread = Mathf.Max(0f, spread);
-            Vector3 targetPoint = GetAimPointFromMouse();
+            Vector3 targetPoint = GetAimPoint();
             
             // Вычисляем направление от FirePoint к точке прицела
             Vector3 directionToTarget = targetPoint - firePoint.position;
@@ -362,81 +362,42 @@ namespace TankGame.Tank.Components
         /// Получить точку прицеливания от курсора мыши (для топдаун шутера)
         /// Проецирует курсор на плоскость земли
         /// </summary>
-        private Vector3 GetAimPointFromMouse()
+        private Vector3 GetAimPoint()
         {
             if (hasExternalAimPoint)
                 return externalAimPoint;
 
-            Camera mainCamera = Camera.main;
-            if (mainCamera == null)
-            {
+            if (firePoint != null)
                 return firePoint.position + firePoint.forward * 100f;
-            }
-            
-            // В топдаун шутере проецируем курсор мыши на плоскость земли
-            // Получаем высоту танка для плоскости
-            Transform tankTransform = transform.root;
-            float groundHeight = tankTransform != null ? tankTransform.position.y : 0f;
-            
-            // Создаем плоскость на уровне земли
-            Plane groundPlane = new Plane(Vector3.up, groundHeight);
-            
-            Ray mouseRay = mainCamera.ScreenPointToRay(Input.mousePosition);
-            
-            if (groundPlane.Raycast(mouseRay, out float distance))
-            {
-                return mouseRay.GetPoint(distance);
-            }
 
-            float maxDistance = 500f;
-            Vector3 farPoint = mouseRay.origin + mouseRay.direction * maxDistance;
-            farPoint.y = groundHeight;
-            return farPoint;
+            return transform.position + transform.forward * 100f;
         }
-        
-        
+
+        // Backward compatibility wrapper.
+        private Vector3 GetAimPointFromMouse()
+        {
+            return GetAimPoint();
+        }
+
         /// <summary>
-        /// Рисует debug ray для визуализации выстрела в топдаун шутере
+        /// Draw debug shot ray.
         /// </summary>
         private void DrawDebugRay(Vector3 origin, Vector3 direction)
         {
             if (!showDebugRay)
                 return;
-            
-            Camera mainCamera = Camera.main;
-            if (mainCamera == null)
-                return;
-            
-            // Точка куда смотрит курсор мыши (в мире)
-            Vector3 targetPoint = GetAimPointFromMouse();
-            
-            // ═══════════════════════════════════════════════════════════════
-            // ВИЗУАЛИЗАЦИЯ ВЫСТРЕЛА
-            // ═══════════════════════════════════════════════════════════════
-            
-            // 1. 🔴 FirePoint (точка выстрела)
+
+            Vector3 targetPoint = GetAimPoint();
+
             Debug.DrawLine(origin + Vector3.up * 0.1f, origin - Vector3.up * 0.1f, Color.red, debugRayDuration);
             Debug.DrawLine(origin + Vector3.right * 0.1f, origin - Vector3.right * 0.1f, Color.red, debugRayDuration);
-            
-            // 2. 🔵 Raycast от камеры к курсору мыши
-            Ray mouseRay = mainCamera.ScreenPointToRay(Input.mousePosition);
-            Debug.DrawLine(mouseRay.origin, targetPoint, Color.cyan, debugRayDuration);
-            
-            // 3. 🔷 Направление ОТ FirePoint К курсору (БЕЗ разброса)
             Debug.DrawLine(origin, targetPoint, Color.blue, debugRayDuration * 1.5f);
-            
-            // 4. 🟡 Направление пули (С разбросом - реальный выстрел)
+
             Vector3 bulletEndPoint = origin + direction * Vector3.Distance(origin, targetPoint);
             Debug.DrawLine(origin, bulletEndPoint, Color.yellow, debugRayDuration);
-            
-            // 5. 🟢 Точка попадания
             Debug.DrawLine(targetPoint + Vector3.up * 0.2f, targetPoint - Vector3.up * 0.2f, Color.green, debugRayDuration);
             Debug.DrawLine(targetPoint + Vector3.right * 0.2f, targetPoint - Vector3.right * 0.2f, Color.green, debugRayDuration);
-            
-            // Дополнительно: маркер разброса
-            float spreadDeviation = Vector3.Angle(targetPoint - origin, direction);
             Debug.DrawLine(bulletEndPoint, targetPoint, Color.magenta, debugRayDuration);
-            
         }
 
         public bool TryReload()
@@ -573,19 +534,29 @@ namespace TankGame.Tank.Components
             weaponAudioSource.PlayOneShot(emptyShotSound, weaponSfxVolume);
         }
 
-        public void SetExternalAimPoint(Vector3 worldPoint)
+        public void SetAimPoint(Vector3 worldPoint)
         {
             hasExternalAimPoint = true;
             externalAimPoint = worldPoint;
         }
 
-        public void ClearExternalAimPoint()
+        public void ClearAimPoint()
         {
             hasExternalAimPoint = false;
         }
 
+        public void SetExternalAimPoint(Vector3 worldPoint)
+        {
+            SetAimPoint(worldPoint);
+        }
+
+        public void ClearExternalAimPoint()
+        {
+            ClearAimPoint();
+        }
+
         /// <summary>
-        /// Возвращает пулю в пул
+        /// Returns bullet back to the pool.
         /// </summary>
         public void ReturnBullet(BulletComponent bullet)
         {
@@ -659,4 +630,9 @@ namespace TankGame.Tank.Components
         }
     }
 }
+
+
+
+
+
 

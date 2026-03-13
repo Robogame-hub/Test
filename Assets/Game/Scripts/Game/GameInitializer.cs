@@ -1,84 +1,104 @@
 using UnityEngine;
 using TankGame.Tank;
+using TankGame.Session;
 
 namespace TankGame.Game
 {
     /// <summary>
-    /// Инициализатор игры - спавнит танки при старте
-    /// ВАЖНО: Если Photon включен, танки должны спавниться через PhotonNetworkManager, а не здесь!
+    /// ������������� ���� � ���������� ������.
+    /// ���� ����� ������� ������� �����, ����� ������ �������� ������� ����������.
     /// </summary>
     public class GameInitializer : MonoBehaviour
     {
         [Header("Spawn Settings")]
-        [Tooltip("Префаб танка для спавна (если нужно спавнить автоматически)")]
         [SerializeField] private GameObject tankPrefab;
-        
-        [Tooltip("Автоматически спавнить танк при старте в случайном спавн-поинте")]
         [SerializeField] private bool autoSpawnOnStart = true;
-        
+
+        [Header("Menu Tank Selection")]
+        [Tooltip("������ ������, ��������� �� ����. ������ ������� �� GameSessionSettings.SelectedTankIndex")]
+        [SerializeField] private GameObject[] selectablePlayerTanks;
+        [SerializeField] private bool useMenuSelectedTank = true;
+
         [Header("References")]
-        [Tooltip("Ссылка на существующий танк в сцене (если не нужно спавнить)")]
         [SerializeField] private TankController existingTank;
 
         private void Start()
         {
             InitializeGame();
         }
-        
-        /// <summary>
-        /// Инициализирует игру и спавнит танки локально
-        /// </summary>
+
         private void InitializeGame()
         {
-            // Если есть существующий танк в сцене
+            if (SpawnManager.Instance == null)
+            {
+                Debug.LogError("[GameInitializer] SpawnManager is missing in scene.");
+                return;
+            }
+
+            if (TrySpawnTankFromMenuSelection())
+                return;
+
             if (existingTank != null)
             {
                 SpawnExistingTank(existingTank);
                 return;
             }
-            
-            // Автоматический спавн префаба в случайном спавн-поинте
+
             if (autoSpawnOnStart && tankPrefab != null)
             {
-                SpawnTankPrefab();
+                SpawnTankPrefab(tankPrefab);
             }
             else if (autoSpawnOnStart && tankPrefab == null)
             {
                 Debug.LogWarning("[GameInitializer] autoSpawnOnStart is true but tankPrefab is not assigned!");
             }
         }
-        
-        /// <summary>
-        /// Спавнит существующий танк в сцене
-        /// </summary>
+
+        private bool TrySpawnTankFromMenuSelection()
+        {
+            if (!useMenuSelectedTank || selectablePlayerTanks == null || selectablePlayerTanks.Length == 0)
+                return false;
+
+            int selectedIndex = Mathf.Clamp(GameSessionSettings.SelectedTankIndex, 0, selectablePlayerTanks.Length - 1);
+            GameObject selectedPrefab = selectablePlayerTanks[selectedIndex];
+            if (selectedPrefab == null)
+                return false;
+
+            if (existingTank != null)
+            {
+                Destroy(existingTank.gameObject);
+                existingTank = null;
+            }
+
+            SpawnTankPrefab(selectedPrefab);
+            return true;
+        }
+
         private void SpawnExistingTank(TankController tank)
         {
             if (tank == null || SpawnManager.Instance == null)
                 return;
-            
+
             SpawnPoint spawnPoint = SpawnManager.Instance.SpawnTank(tank);
-            
             if (spawnPoint != null)
             {
                 Debug.Log($"[GameInitializer] Existing tank {tank.name} spawned at point {spawnPoint.SpawnPointIndex}");
             }
         }
-        
-        /// <summary>
-        /// Спавнит танк из префаба
-        /// </summary>
-        private void SpawnTankPrefab()
+
+        private void SpawnTankPrefab(GameObject prefab)
         {
-            if (tankPrefab == null || SpawnManager.Instance == null)
+            if (prefab == null || SpawnManager.Instance == null)
                 return;
-            
-            GameObject tankObj = Instantiate(tankPrefab);
+
+            GameObject tankObj = Instantiate(prefab);
             TankController tank = tankObj.GetComponent<TankController>();
-            
+
             if (tank != null)
             {
+                tank.SetIsLocalPlayer(true);
                 SpawnPoint spawnPoint = SpawnManager.Instance.SpawnTank(tank);
-                
+
                 if (spawnPoint != null)
                 {
                     Debug.Log($"[GameInitializer] Tank {tank.name} spawned from prefab at point {spawnPoint.SpawnPointIndex}");
@@ -92,4 +112,3 @@ namespace TankGame.Game
         }
     }
 }
-

@@ -31,7 +31,7 @@ namespace TankGame.UI
             if (tankController == null)
             {
                 // Пытаемся взять локального игрока из реестра
-                var local = TankRegistry.GetLocalPlayer();
+                var local = TankRuntime.GetLocalPlayer();
                 if (local != null)
                     tankController = local;
                 else
@@ -87,4 +87,5 @@ namespace TankGame.UI
         }
     }
 }
+
 

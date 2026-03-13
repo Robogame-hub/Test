@@ -136,6 +136,7 @@ namespace TankGame.Tank.Components
         private TankController tankController;
         private LineRenderer   fireLineRenderer;
         private float          targetRotationAudioVolume;
+        private float          pendingCameraYawInput;
 
         // ─── Public API ───────────────────────────────────────────────────────
         public Transform Turret          => turret;
@@ -259,6 +260,7 @@ namespace TankGame.Tank.Components
             if (tankController == null || tankController.IsLocalPlayer)
             {
                 UpdateCamera();
+                pendingCameraYawInput = 0f;
             }
 
             if (isAiming)
@@ -387,9 +389,9 @@ namespace TankGame.Tank.Components
             if (turretCamera == null || tankTransform == null) return;
 
             // Поворот по Y при зажатой средней кнопке мыши
-            if (Input.GetMouseButton(2))
-                cameraYawRotation += Input.GetAxis("Mouse X") * cameraYawRotationSpeed * Time.deltaTime;
-
+            if (Mathf.Abs(pendingCameraYawInput) > 0.0001f)
+                cameraYawRotation += pendingCameraYawInput * cameraYawRotationSpeed;
+            pendingCameraYawInput = 0f;
             // Целевая позиция = над танком + смещение к прицелу
             UpdateCameraOffset();
             Vector3 targetPos = tankTransform.position + Vector3.up * cameraHeight + cameraOffset;
@@ -517,15 +519,50 @@ namespace TankGame.Tank.Components
             if (crosshair != null) crosshair.SetActive(false);
         }
 
-        public void SetExternalAimPoint(Vector3 worldPoint)
+        public void SetAimPoint(Vector3 worldPoint)
         {
             hasExternalAimPoint = true;
             externalAimPoint = worldPoint;
         }
 
-        public void ClearExternalAimPoint()
+        public void ClearAimPoint()
         {
             hasExternalAimPoint = false;
+        }
+
+        public Vector3 GetAimPoint()
+        {
+            if (hasExternalAimPoint)
+                return externalAimPoint;
+
+            Transform fallback = weapon != null && weapon.FirePoint != null ? weapon.FirePoint : turret;
+            if (fallback == null)
+                return transform.position + transform.forward * 100f;
+
+            Vector3 point = fallback.position + fallback.forward * 100f;
+            point.y = tankTransform != null ? tankTransform.position.y : point.y;
+            return point;
+        }
+
+        public void SetCameraYawInput(float yawDelta)
+        {
+            pendingCameraYawInput = yawDelta;
+        }
+
+        // Backward compatibility wrappers.
+        public void SetExternalAimPoint(Vector3 worldPoint)
+        {
+            SetAimPoint(worldPoint);
+        }
+
+        public void ClearExternalAimPoint()
+        {
+            ClearAimPoint();
+        }
+
+        public Vector3 GetAimPointFromMouse()
+        {
+            return GetAimPoint();
         }
 
         public void SetWeapon(TankWeapon newWeapon)
@@ -536,32 +573,8 @@ namespace TankGame.Tank.Components
 
         public void SetWeaponMode(WeaponType mode)
         {
-            // Оставлено для совместимости с TankController.
+            // Reserved for weapon-specific turret behavior.
         }
-
-        public Vector3 GetAimPointFromMouse()
-        {
-            if (hasExternalAimPoint)
-                return externalAimPoint;
-
-            Camera cam = turretCamera != null ? turretCamera : Camera.main;
-            if (cam == null) return transform.position + transform.forward * 100f;
-
-            float groundY = tankTransform != null        ? tankTransform.position.y
-                          : weapon?.FirePoint != null    ? weapon.FirePoint.position.y
-                          :                               transform.position.y;
-
-            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-            Plane ground = new Plane(Vector3.up, groundY);
-
-            if (ground.Raycast(ray, out float dist))
-                return ray.GetPoint(dist);
-
-            Vector3 far = ray.origin + ray.direction * 500f;
-            far.y = groundY;
-            return far;
-        }
-
         public float GetFireStability()
         {
             if (weapon == null || weapon.FirePoint == null) return 0f;
@@ -665,3 +678,10 @@ namespace TankGame.Tank.Components
         }
     }
 }
+
+
+
+
+
+
+
