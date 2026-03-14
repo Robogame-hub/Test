@@ -166,6 +166,7 @@ namespace TankGame.Menu
             EnsureSandboxMatchPanelExists();
             EnsureSandboxPanelAsSibling();
             EnsureSandboxMatchUiReferences();
+            RebindSandboxMatchButtons();
 
             int maxBots = Mathf.Max(0, GameSessionSettings.MaxPlayers - 1);
             currentSandboxBotCount = Mathf.Clamp(GameSessionSettings.SandboxBotCount, 0, maxBots);
@@ -318,6 +319,42 @@ namespace TankGame.Menu
             {
                 backFromSandboxMatchButton = CreateRuntimeButton(panel, "BackFromSandboxMatchButton", LocalizationService.Get("menu.back"), 260f, 74f, 28f);
                 AddLocalizedKey(backFromSandboxMatchButton.GetComponentInChildren<TMP_Text>(true)?.gameObject, "menu.back");
+            }
+        }
+
+        private void RebindSandboxMatchButtons()
+        {
+            // Ensure same behavior and feedback as the rest of menu buttons, even if controls were created at runtime.
+            if (sandboxBotsPrevButton != null)
+            {
+                sandboxBotsPrevButton.onClick.RemoveListener(OnSandboxBotCountPrev);
+                sandboxBotsPrevButton.onClick.AddListener(OnSandboxBotCountPrev);
+                ApplyButtonTextColor(sandboxBotsPrevButton);
+                ConfigureButtonFeedback(sandboxBotsPrevButton);
+            }
+
+            if (sandboxBotsNextButton != null)
+            {
+                sandboxBotsNextButton.onClick.RemoveListener(OnSandboxBotCountNext);
+                sandboxBotsNextButton.onClick.AddListener(OnSandboxBotCountNext);
+                ApplyButtonTextColor(sandboxBotsNextButton);
+                ConfigureButtonFeedback(sandboxBotsNextButton);
+            }
+
+            if (startSandboxMatchButton != null)
+            {
+                startSandboxMatchButton.onClick.RemoveListener(StartSandboxMatch);
+                startSandboxMatchButton.onClick.AddListener(StartSandboxMatch);
+                ApplyButtonTextColor(startSandboxMatchButton);
+                ConfigureButtonFeedback(startSandboxMatchButton);
+            }
+
+            if (backFromSandboxMatchButton != null)
+            {
+                backFromSandboxMatchButton.onClick.RemoveListener(ShowMainPanel);
+                backFromSandboxMatchButton.onClick.AddListener(ShowMainPanel);
+                ApplyButtonTextColor(backFromSandboxMatchButton);
+                ConfigureButtonFeedback(backFromSandboxMatchButton);
             }
         }
 
@@ -658,6 +695,7 @@ namespace TankGame.Menu
             EnsureSandboxMatchPanelExists();
             EnsureSandboxPanelAsSibling();
             EnsureSandboxMatchUiReferences();
+            RebindSandboxMatchButtons();
 
             if (sandboxMatchPanel == null)
             {
@@ -671,6 +709,9 @@ namespace TankGame.Menu
             sandboxMatchPanel.SetActive(true);
             if (mainPanel != null)
                 mainPanel.SetActive(false);
+
+            // Mark sandbox mode immediately so bot settings survive any legacy persistent scene-load listeners.
+            GameSessionSettings.PrepareSandbox(currentSandboxBotCount);
         }
 
         private void OnPlayClicked()

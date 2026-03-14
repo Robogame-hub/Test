@@ -59,13 +59,15 @@ namespace TankGame.Game
 
         private void ResolveBotCountFromSession()
         {
+            MatchStartMode mode = GameSessionSettings.StartMode;
+
             if (useSessionSoloBotCount)
             {
-                if (GameSessionSettings.StartMode == MatchStartMode.SoloWithBots)
+                if (mode == MatchStartMode.SoloWithBots)
                 {
                     botCount = GameSessionSettings.SoloBotCount;
                 }
-                else if (GameSessionSettings.StartMode == MatchStartMode.Sandbox)
+                else if (mode == MatchStartMode.Sandbox)
                 {
                     botCount = GameSessionSettings.SandboxBotCount;
                 }
@@ -74,6 +76,8 @@ namespace TankGame.Game
             // 1 local player + bots must never exceed max player slots.
             int maxBotsAllowed = Mathf.Max(0, GameSessionSettings.MaxPlayers - 1);
             botCount = Mathf.Clamp(botCount, 0, maxBotsAllowed);
+
+            Debug.Log($"[BotPoolManager] Session mode={mode}, solo={GameSessionSettings.SoloBotCount}, sandbox={GameSessionSettings.SandboxBotCount}, resolved botCount={botCount}.");
         }
 
         public void SpawnAllBots()
