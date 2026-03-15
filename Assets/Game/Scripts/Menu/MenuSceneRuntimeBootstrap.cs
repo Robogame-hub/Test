@@ -1,5 +1,6 @@
-﻿using System.IO;
+using System.IO;
 using TankGame.Session;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -22,7 +23,6 @@ namespace TankGame.Menu
         private const string CoreSceneName = "Core";
 
         private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
-        private const string CoreScenePath = "Assets/Scenes/Core.unity";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InitAfterFirstSceneLoad()
@@ -42,9 +42,20 @@ namespace TankGame.Menu
             if (!scene.IsValid())
                 return;
 
+            ApplyConfiguredUIFontToAllUi();
+
+            if (scene.name == CoreSceneName)
+            {
+                EnsureCorePauseMenu();
+                return;
+            }
+
             bool isMenuScene = scene.name == MainMenuSceneName || scene.name == LobbySceneName;
             if (!isMenuScene)
                 return;
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
 
             EnsureAudioListener();
             MenuMusicPlayer.EnsureInstance();
@@ -57,8 +68,20 @@ namespace TankGame.Menu
             if (lobbyController != null)
                 return;
 
+            HideLobbyPlaySoloButton();
             WireLobbyBackButton();
-            WireLobbyPlaySoloButton();
+            WireLobbyNicknameInput();
+            WireLobbyButtonFeedbacks();
+        }
+
+        private static void EnsureCorePauseMenu()
+        {
+            BattlePauseMenuController controller = Object.FindObjectOfType<BattlePauseMenuController>(true);
+            if (controller != null)
+                return;
+
+            GameObject go = new GameObject("BattlePauseMenuController");
+            go.AddComponent<BattlePauseMenuController>();
         }
 
         private static void EnsureAudioListener()
@@ -82,6 +105,35 @@ namespace TankGame.Menu
                 cam.gameObject.AddComponent<AudioListener>();
         }
 
+        private static void ApplyConfiguredUIFontToAllUi()
+        {
+            MenuButtonFeedbackConfig config = MenuButtonFeedbackConfig.LoadDefault();
+            if (config == null || config.uiFont == null)
+                return;
+
+            TMP_Text[] allTexts = Object.FindObjectsOfType<TMP_Text>(true);
+            for (int i = 0; i < allTexts.Length; i++)
+            {
+                TMP_Text text = allTexts[i];
+                if (text != null && text.font != config.uiFont)
+                    text.font = config.uiFont;
+            }
+
+            TMP_InputField[] allInputs = Object.FindObjectsOfType<TMP_InputField>(true);
+            for (int i = 0; i < allInputs.Length; i++)
+            {
+                TMP_InputField input = allInputs[i];
+                if (input == null)
+                    continue;
+
+                if (input.textComponent != null && input.textComponent.font != config.uiFont)
+                    input.textComponent.font = config.uiFont;
+
+                if (input.placeholder is TMP_Text placeholder && placeholder.font != config.uiFont)
+                    placeholder.font = config.uiFont;
+            }
+        }
+
         private static void WireLobbyBackButton()
         {
             GameObject go = GameObject.Find("BackButton");
@@ -96,24 +148,90 @@ namespace TankGame.Menu
             backButton.onClick.AddListener(LoadMainMenu);
         }
 
-        private static void WireLobbyPlaySoloButton()
+        private static void WireLobbyNicknameInput()
+        {
+            GameObject go = GameObject.Find("NicknameInput");
+            if (go == null)
+                return;
+
+            TMP_InputField nicknameInput = go.GetComponent<TMP_InputField>();
+            if (nicknameInput == null)
+                return;
+
+            nicknameInput.SetTextWithoutNotify(GameSessionSettings.PlayerNickname);
+            nicknameInput.onValueChanged.RemoveListener(OnLobbyNicknameChanged);
+            nicknameInput.onValueChanged.AddListener(OnLobbyNicknameChanged);
+            nicknameInput.onEndEdit.RemoveListener(OnLobbyNicknameChanged);
+            nicknameInput.onEndEdit.AddListener(OnLobbyNicknameChanged);
+        }
+
+        private static void OnLobbyNicknameChanged(string value)
+        {
+            GameSessionSettings.PlayerNickname = value;
+        }
+
+        private static void HideLobbyPlaySoloButton()
         {
             GameObject go = GameObject.Find("PlaySoloButton");
             if (go == null)
                 return;
 
-            Button playSoloButton = go.GetComponent<Button>();
-            if (playSoloButton == null)
-                return;
-
-            playSoloButton.onClick.RemoveListener(PlaySoloFallback);
-            playSoloButton.onClick.AddListener(PlaySoloFallback);
+            go.SetActive(false);
         }
 
-        private static void PlaySoloFallback()
+        private static void WireLobbyButtonFeedbacks()
         {
-            GameSessionSettings.PrepareSolo(GameSessionSettings.MaxPlayers);
-            LoadSceneWithFallback(CoreSceneName, CoreScenePath, "MenuSceneRuntimeBootstrap");
+            MenuButtonFeedbackConfig config = MenuButtonFeedbackConfig.LoadDefault();
+            AudioSource audioSource = EnsureLobbyButtonFeedbackAudioSource();
+
+            ConfigureLobbyButtonFeedback("RefreshButton", config, audioSource);
+            ConfigureLobbyButtonFeedback("CreateButton", config, audioSource);
+            ConfigureLobbyButtonFeedback("BackButton", config, audioSource);
+        }
+
+        private static AudioSource EnsureLobbyButtonFeedbackAudioSource()
+        {
+            GameObject existing = GameObject.Find("LobbyButtonFeedbackAudio");
+            if (existing != null)
+            {
+                AudioSource existingSource = existing.GetComponent<AudioSource>();
+                if (existingSource != null)
+                    return existingSource;
+            }
+
+            GameObject audioGo = new GameObject("LobbyButtonFeedbackAudio");
+            AudioSource source = audioGo.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = false;
+            source.spatialBlend = 0f;
+            return source;
+        }
+
+        private static void ConfigureLobbyButtonFeedback(string objectName, MenuButtonFeedbackConfig config, AudioSource audioSource)
+        {
+            GameObject go = GameObject.Find(objectName);
+            if (go == null)
+                return;
+
+            Button button = go.GetComponent<Button>();
+            if (button == null)
+                return;
+
+            MenuButtonFeedback feedback = go.GetComponent<MenuButtonFeedback>();
+            if (feedback == null)
+                feedback = go.AddComponent<MenuButtonFeedback>();
+
+            feedback.button = button;
+            feedback.targetText = go.GetComponentInChildren<TMP_Text>(true);
+            feedback.Configure(
+                config != null ? config.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF),
+                config != null ? config.hoverTextColor : Color.red,
+                config != null ? config.pressedTextColor : Color.white,
+                config != null ? Mathf.Max(1f, config.hoverTextScale) : 1.08f,
+                config != null ? Mathf.Max(1f, config.scaleLerpSpeed) : 16f,
+                audioSource,
+                config != null ? config.hoverSound : null,
+                config != null ? config.clickSound : null);
         }
 
         private static void LoadMainMenu()

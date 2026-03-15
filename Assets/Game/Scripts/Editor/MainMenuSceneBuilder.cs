@@ -253,7 +253,6 @@ namespace TankGame.EditorTools
             GameObject buttonsRow = CreateRow("ButtonsRow", root.transform);
             Button refreshButton = CreateMenuButton(buttonsRow.transform, "RefreshButton", "lobby.refresh", 220f, 60f);
             Button createRoomButton = CreateMenuButton(buttonsRow.transform, "CreateButton", "lobby.create_room", 280f, 60f);
-            Button playSoloButton = CreateMenuButton(buttonsRow.transform, "PlaySoloButton", "lobby.play_solo", 240f, 60f);
             Button backButton = CreateMenuButton(buttonsRow.transform, "BackButton", "menu.back", 180f, 60f);
 
             GameObject roomEntryTemplate = CreateRoomEntryTemplate(content.transform);
@@ -267,7 +266,6 @@ namespace TankGame.EditorTools
             lobby.refreshButton = refreshButton;
             lobby.nicknameInputField = nicknameInput;
             lobby.createRoomButton = createRoomButton;
-            lobby.playSoloButton = playSoloButton;
             lobby.backButton = backButton;
 
             SetupMenuMusic();

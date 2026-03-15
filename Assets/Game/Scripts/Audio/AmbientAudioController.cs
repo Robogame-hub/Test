@@ -37,6 +37,7 @@ namespace TankGame.Audio
         private Coroutine ambientRoutine;
         private int lastTrackIndex = -1;
         private bool isRunning;
+        private float lastAppliedMusicVolume = -1f;
 
         public bool IsRunning => isRunning;
 
@@ -46,10 +47,21 @@ namespace TankGame.Audio
             ambientSource.playOnAwake = false;
             ambientSource.loop = false;
             ambientSource.spatialBlend = 0f; // 2D ambience
-            ambientSource.volume = volume;
+            ApplyEffectiveVolume();
 
             if (maxDelayBetweenCycles < minDelayBetweenCycles)
                 maxDelayBetweenCycles = minDelayBetweenCycles;
+        }
+
+        private void Update()
+        {
+            float musicVolume = 1f;
+            TankGame.Menu.AudioSettings settings = TankGame.Menu.AudioSettings.Instance;
+            if (settings != null)
+                musicVolume = Mathf.Clamp01(settings.MusicVolume);
+
+            if (!Mathf.Approximately(lastAppliedMusicVolume, musicVolume))
+                ApplyEffectiveVolume();
         }
 
         private void Start()
@@ -93,8 +105,21 @@ namespace TankGame.Audio
         public void SetVolume(float newVolume)
         {
             volume = Mathf.Clamp01(newVolume);
-            if (ambientSource != null)
-                ambientSource.volume = volume;
+            ApplyEffectiveVolume();
+        }
+
+        private void ApplyEffectiveVolume()
+        {
+            if (ambientSource == null)
+                return;
+
+            float musicVolume = 1f;
+            TankGame.Menu.AudioSettings settings = TankGame.Menu.AudioSettings.Instance;
+            if (settings != null)
+                musicVolume = Mathf.Clamp01(settings.MusicVolume);
+
+            lastAppliedMusicVolume = musicVolume;
+            ambientSource.volume = Mathf.Clamp01(volume * musicVolume);
         }
 
         private IEnumerator AmbientLoopRoutine()
@@ -154,7 +179,7 @@ namespace TankGame.Audio
                 maxDelayBetweenCycles = minDelayBetweenCycles;
 
             if (ambientSource != null)
-                ambientSource.volume = Mathf.Clamp01(volume);
+                ApplyEffectiveVolume();
         }
 #endif
     }

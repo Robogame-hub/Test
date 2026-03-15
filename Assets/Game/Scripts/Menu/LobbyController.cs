@@ -30,48 +30,29 @@ namespace TankGame.Menu
         public Button refreshButton;
         [Tooltip("РљРЅРѕРїРєР° СЃРѕР·РґР°РЅРёСЏ РЅРѕРІРѕР№ РєРѕРјРЅР°С‚С‹ (Р»РѕРєР°Р»СЊРЅР°СЏ Р·Р°РіР»СѓС€РєР°).")]
         public Button createRoomButton;
-        [Tooltip("РљРЅРѕРїРєР° Р·Р°РїСѓСЃРєР° РѕРґРёРЅРѕС‡РЅРѕР№ РёРіСЂС‹ СЃ Р±РѕС‚Р°РјРё.")]
-        public Button playSoloButton;
         [Tooltip("РљРЅРѕРїРєР° РІРѕР·РІСЂР°С‚Р° РІ РіР»Р°РІРЅРѕРµ РјРµРЅСЋ.")]
         public Button backButton;
         [Header("Button Feedback")]
         [Tooltip("Источник звука для фидбека кнопок (hover/click).")]
         public AudioSource buttonFeedbackAudioSource;
-        [Tooltip("Звук при наведении на кнопку.")]
-        public AudioClip buttonHoverSound;
-        [Tooltip("Звук при нажатии на кнопку.")]
-        public AudioClip buttonClickSound;
-        [Tooltip("Базовый цвет текста кнопки.")]
-        public Color buttonNormalTextColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
-        [Tooltip("Цвет текста кнопки при наведении.")]
-        public Color buttonHoverTextColor = Color.red;
-        [Tooltip("Цвет текста кнопки при нажатии.")]
-        public Color buttonPressedTextColor = Color.white;
-        [Tooltip("Множитель масштаба текста при наведении.")]
-        [Min(1f)]
-        public float buttonHoverTextScale = 1.08f;
-        [Tooltip("Скорость анимации масштаба текста кнопки.")]
-        [Min(1f)]
-        public float buttonScaleLerpSpeed = 16f;
+        [Header("Shared Feedback Config")]
+        [Tooltip("Общий конфиг параметров фидбека кнопок. Если не задан, пробуем загрузить Resources/Menu/MenuButtonFeedbackConfig.")]
+        public MenuButtonFeedbackConfig sharedButtonFeedbackConfig;
 
         [Header("Nickname")]
         [Tooltip("РџРѕР»Рµ РІРІРѕРґР° РЅРёРєР° РёРіСЂРѕРєР°.")]
         public TMP_InputField nicknameInputField;
-
-        [Header("Solo")]
-        [Tooltip("РљРѕР»РёС‡РµСЃС‚РІРѕ Р±РѕС‚РѕРІ РїСЂРё РЅР°Р¶Р°С‚РёРё 'РРіСЂР°С‚СЊ РѕРґРЅРѕРјСѓ'.")]
-        public int soloBotCount = 3;
 
         private readonly List<string> roomNames = new List<string>();
 
         private void Start()
         {
             MenuMusicPlayer.EnsureInstance();
+            ApplySharedButtonFeedbackConfig();
             SetupButtonFeedbacks();
 
             if (refreshButton != null) refreshButton.onClick.AddListener(RefreshRooms);
             if (createRoomButton != null) createRoomButton.onClick.AddListener(CreateRoom);
-            if (playSoloButton != null) playSoloButton.onClick.AddListener(PlaySolo);
             if (backButton != null) backButton.onClick.AddListener(BackToMenu);
 
             if (nicknameInputField != null)
@@ -87,7 +68,6 @@ namespace TankGame.Menu
         {
             if (refreshButton != null) refreshButton.onClick.RemoveListener(RefreshRooms);
             if (createRoomButton != null) createRoomButton.onClick.RemoveListener(CreateRoom);
-            if (playSoloButton != null) playSoloButton.onClick.RemoveListener(PlaySolo);
             if (backButton != null) backButton.onClick.RemoveListener(BackToMenu);
 
             if (nicknameInputField != null)
@@ -126,8 +106,17 @@ namespace TankGame.Menu
                 GameObject row = Instantiate(roomEntryPrefab, roomListContainer);
                 row.SetActive(true);
                 TMP_Text[] texts = row.GetComponentsInChildren<TMP_Text>(true);
+                TMP_FontAsset configuredFont = GetConfiguredUiFont();
                 if (texts.Length > 0)
                     texts[0].text = roomName;
+                if (configuredFont != null)
+                {
+                    for (int t = 0; t < texts.Length; t++)
+                    {
+                        if (texts[t] != null)
+                            texts[t].font = configuredFont;
+                    }
+                }
 
                 Button joinButton = row.GetComponentInChildren<Button>(true);
                 if (joinButton != null)
@@ -143,7 +132,6 @@ namespace TankGame.Menu
             EnsureButtonFeedbackAudioSource();
             ConfigureButtonFeedback(refreshButton);
             ConfigureButtonFeedback(createRoomButton);
-            ConfigureButtonFeedback(playSoloButton);
             ConfigureButtonFeedback(backButton);
         }
         private void EnsureButtonFeedbackAudioSource()
@@ -171,14 +159,60 @@ namespace TankGame.Menu
             feedback.button = button;
             feedback.targetText = button.GetComponentInChildren<TMP_Text>(true);
             feedback.Configure(
-                buttonNormalTextColor,
-                buttonHoverTextColor,
-                buttonPressedTextColor,
-                buttonHoverTextScale,
-                buttonScaleLerpSpeed,
+                GetButtonNormalColor(),
+                GetButtonHoverColor(),
+                GetButtonPressedColor(),
+                GetButtonHoverScale(),
+                GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
-                buttonHoverSound,
-                buttonClickSound);
+                GetButtonHoverSound(),
+                GetButtonClickSound());
+        }
+
+        private void ApplySharedButtonFeedbackConfig()
+        {
+            if (sharedButtonFeedbackConfig == null)
+                sharedButtonFeedbackConfig = MenuButtonFeedbackConfig.LoadDefault();
+        }
+
+        private Color GetButtonNormalColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        }
+
+        private Color GetButtonHoverColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : Color.red;
+        }
+
+        private Color GetButtonPressedColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : Color.white;
+        }
+
+        private float GetButtonHoverScale()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.hoverTextScale) : 1.08f;
+        }
+
+        private float GetButtonScaleLerpSpeed()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.scaleLerpSpeed) : 16f;
+        }
+
+        private AudioClip GetButtonHoverSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverSound : null;
+        }
+
+        private AudioClip GetButtonClickSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.clickSound : null;
+        }
+
+        private TMP_FontAsset GetConfiguredUiFont()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.uiFont : null;
         }
         private void OnNicknameChanged(string value)
         {
@@ -188,12 +222,6 @@ namespace TankGame.Menu
         private void JoinRoom(string roomName)
         {
             GameSessionSettings.PrepareLobby();
-            LoadConfiguredScene(gameSceneName, "Assets/Scenes/Core.unity");
-        }
-
-        private void PlaySolo()
-        {
-            GameSessionSettings.PrepareSolo(GameSessionSettings.MaxPlayers);
             LoadConfiguredScene(gameSceneName, "Assets/Scenes/Core.unity");
         }
 

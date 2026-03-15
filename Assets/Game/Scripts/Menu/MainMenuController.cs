@@ -52,26 +52,12 @@ namespace TankGame.Menu
         [Tooltip("Кнопка увеличения количества ботов (вправо).") ]
         public Button sandboxBotsNextButton;
 
-        [Header("Menu Text Color")]
-        [Tooltip("Р¦РІРµС‚ С‚РµРєСЃС‚Р° РєРЅРѕРїРѕРє РіР»Р°РІРЅРѕРіРѕ РјРµРЅСЋ.")]
-        public Color menuButtonTextColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
         [Header("Button Feedback")]
         [Tooltip("Источник звука для фидбека кнопок (hover/click).")]
         public AudioSource buttonFeedbackAudioSource;
-        [Tooltip("Звук при наведении на кнопку.")]
-        public AudioClip buttonHoverSound;
-        [Tooltip("Звук при нажатии на кнопку.")]
-        public AudioClip buttonClickSound;
-        [Tooltip("Цвет текста кнопки при наведении.")]
-        public Color buttonHoverTextColor = Color.red;
-        [Tooltip("Цвет текста кнопки при нажатии.")]
-        public Color buttonPressedTextColor = Color.white;
-        [Tooltip("Множитель масштаба текста при наведении.")]
-        [Min(1f)]
-        public float buttonHoverTextScale = 1.08f;
-        [Tooltip("Скорость анимации масштаба текста кнопки.")]
-        [Min(1f)]
-        public float buttonScaleLerpSpeed = 16f;
+        [Header("Shared Feedback Config")]
+        [Tooltip("Общий конфиг параметров фидбека кнопок. Если не задан, пробуем загрузить Resources/Menu/MenuButtonFeedbackConfig.")]
+        public MenuButtonFeedbackConfig sharedButtonFeedbackConfig;
 
         [Header("Sensitivity")]
         [Tooltip("РЎР»Р°Р№РґРµСЂ РѕР±С‰РµР№ С‡СѓРІСЃС‚РІРёС‚РµР»СЊРЅРѕСЃС‚Рё СѓРїСЂР°РІР»РµРЅРёСЏ.")]
@@ -115,10 +101,12 @@ namespace TankGame.Menu
             inputSettings = InputSettings.Instance;
             audioSettings = AudioSettings.Instance;
 
+            ApplySharedButtonFeedbackConfig();
             ApplyMenuTextColor();
             SetupButtonFeedbacks();
             HookButtons();
             InitSettingsPanel();
+            HideUnsupportedSensitivityControls();
             InitSandboxMatchPanel();
             ShowMainPanel();
         }
@@ -394,7 +382,7 @@ namespace TankGame.Menu
             label.fontSize = fontSize;
             label.fontStyle = style;
             label.alignment = TextAlignmentOptions.MidlineLeft;
-            label.color = menuButtonTextColor;
+            label.color = GetButtonNormalColor();
 
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.minHeight = Mathf.Max(32f, fontSize + 8f);
@@ -426,7 +414,7 @@ namespace TankGame.Menu
             tmp.text = text;
             tmp.fontSize = fontSize;
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = menuButtonTextColor;
+            tmp.color = GetButtonNormalColor();
 
             return buttonObj.GetComponent<Button>();
         }
@@ -470,9 +458,7 @@ namespace TankGame.Menu
 
             if (inputSettings != null)
             {
-                ConfigureSensitivitySlider(masterSensitivitySlider, inputSettings.MinSensitivity, inputSettings.MaxSensitivity, inputSettings.MasterSensitivity);
                 ConfigureSensitivitySlider(horizontalSensitivitySlider, inputSettings.MinSensitivity, inputSettings.MaxSensitivity, inputSettings.HorizontalSensitivity);
-                ConfigureSensitivitySlider(verticalSensitivitySlider, inputSettings.MinSensitivity, inputSettings.MaxSensitivity, inputSettings.VerticalSensitivity);
             }
 
             if (audioSettings != null)
@@ -508,9 +494,7 @@ namespace TankGame.Menu
 
         private void HookSettingsEvents()
         {
-            if (masterSensitivitySlider != null) masterSensitivitySlider.onValueChanged.AddListener(OnMasterSensitivityChanged);
             if (horizontalSensitivitySlider != null) horizontalSensitivitySlider.onValueChanged.AddListener(OnHorizontalSensitivityChanged);
-            if (verticalSensitivitySlider != null) verticalSensitivitySlider.onValueChanged.AddListener(OnVerticalSensitivityChanged);
 
             if (masterVolumeSlider != null) masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
             if (musicVolumeSlider != null) musicVolumeSlider.onValueChanged.AddListener(OnMusicVolumeChanged);
@@ -519,9 +503,7 @@ namespace TankGame.Menu
 
         private void UnhookSettingsEvents()
         {
-            if (masterSensitivitySlider != null) masterSensitivitySlider.onValueChanged.RemoveListener(OnMasterSensitivityChanged);
             if (horizontalSensitivitySlider != null) horizontalSensitivitySlider.onValueChanged.RemoveListener(OnHorizontalSensitivityChanged);
-            if (verticalSensitivitySlider != null) verticalSensitivitySlider.onValueChanged.RemoveListener(OnVerticalSensitivityChanged);
 
             if (masterVolumeSlider != null) masterVolumeSlider.onValueChanged.RemoveListener(OnMasterVolumeChanged);
             if (musicVolumeSlider != null) musicVolumeSlider.onValueChanged.RemoveListener(OnMusicVolumeChanged);
@@ -550,7 +532,7 @@ namespace TankGame.Menu
 
             TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
             if (text != null)
-                text.color = menuButtonTextColor;
+                text.color = GetButtonNormalColor();
         }
         private void SetupButtonFeedbacks()
         {
@@ -571,13 +553,7 @@ namespace TankGame.Menu
             {
                 tankSelection.ApplyButtonFeedbackSettings(
                     buttonFeedbackAudioSource,
-                    buttonHoverSound,
-                    buttonClickSound,
-                    menuButtonTextColor,
-                    buttonHoverTextColor,
-                    buttonPressedTextColor,
-                    buttonHoverTextScale,
-                    buttonScaleLerpSpeed);
+                    sharedButtonFeedbackConfig);
             }
         }
         private void EnsureButtonFeedbackAudioSource()
@@ -605,14 +581,60 @@ namespace TankGame.Menu
             feedback.button = button;
             feedback.targetText = button.GetComponentInChildren<TMP_Text>(true);
             feedback.Configure(
-                menuButtonTextColor,
-                buttonHoverTextColor,
-                buttonPressedTextColor,
-                buttonHoverTextScale,
-                buttonScaleLerpSpeed,
+                GetButtonNormalColor(),
+                GetButtonHoverColor(),
+                GetButtonPressedColor(),
+                GetButtonHoverScale(),
+                GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
-                buttonHoverSound,
-                buttonClickSound);
+                GetButtonHoverSound(),
+                GetButtonClickSound());
+        }
+
+        private void ApplySharedButtonFeedbackConfig()
+        {
+            if (sharedButtonFeedbackConfig == null)
+                sharedButtonFeedbackConfig = MenuButtonFeedbackConfig.LoadDefault();
+        }
+
+        private Color GetButtonNormalColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        }
+
+        private Color GetButtonHoverColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.hoverTextColor : Color.red;
+        }
+
+        private Color GetButtonPressedColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.pressedTextColor : Color.white;
+        }
+
+        private float GetButtonHoverScale()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? Mathf.Max(1f, cfg.hoverTextScale) : 1.08f;
+        }
+
+        private float GetButtonScaleLerpSpeed()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? Mathf.Max(1f, cfg.scaleLerpSpeed) : 16f;
+        }
+
+        private AudioClip GetButtonHoverSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverSound : null;
+        }
+
+        private AudioClip GetButtonClickSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.clickSound : null;
         }
         private void EnsureSettingsPanelAsSibling()
         {
@@ -782,22 +804,10 @@ namespace TankGame.Menu
                 languageValueText.text = LocalizationService.GetLanguageNativeName(LocalizationService.CurrentLanguage);
         }
 
-        private void OnMasterSensitivityChanged(float value)
-        {
-            if (isInitializing || inputSettings == null) return;
-            inputSettings.MasterSensitivity = value;
-        }
-
         private void OnHorizontalSensitivityChanged(float value)
         {
             if (isInitializing || inputSettings == null) return;
             inputSettings.HorizontalSensitivity = value;
-        }
-
-        private void OnVerticalSensitivityChanged(float value)
-        {
-            if (isInitializing || inputSettings == null) return;
-            inputSettings.VerticalSensitivity = value;
         }
 
         private void OnMasterVolumeChanged(float value)
@@ -816,6 +826,30 @@ namespace TankGame.Menu
         {
             if (isInitializing || audioSettings == null) return;
             audioSettings.SfxVolume = value;
+        }
+
+        private void HideUnsupportedSensitivityControls()
+        {
+            // Keep only horizontal sensitivity in settings UI.
+            HideControlByName("MasterSensLabel");
+            HideControlByName("MasterSensSlider");
+            HideControlByName("VerticalSensLabel");
+            HideControlByName("VerticalSensSlider");
+
+            if (masterSensitivitySlider != null)
+                masterSensitivitySlider.gameObject.SetActive(false);
+            if (verticalSensitivitySlider != null)
+                verticalSensitivitySlider.gameObject.SetActive(false);
+        }
+
+        private static void HideControlByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            GameObject go = GameObject.Find(name);
+            if (go != null)
+                go.SetActive(false);
         }
     }
 }

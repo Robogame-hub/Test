@@ -57,6 +57,16 @@ namespace TankGame.Menu
             ApplyVisualState();
         }
 
+        private void OnEnable()
+        {
+            ResetState(immediateScale: true);
+        }
+
+        private void OnDisable()
+        {
+            ResetState(immediateScale: true);
+        }
+
         private void Update()
         {
             if (targetText == null)
@@ -117,6 +127,16 @@ namespace TankGame.Menu
         {
             isPressed = false;
             ApplyVisualState();
+        }
+
+        public void ResetState(bool immediateScale = false)
+        {
+            isHovered = false;
+            isPressed = false;
+            ApplyVisualState();
+
+            if (immediateScale && targetText != null)
+                targetText.rectTransform.localScale = initialTextScale;
         }
 
         private void ApplyVisualState()

@@ -3,6 +3,7 @@ using TankGame.Commands;
 using TankGame.Core;
 using TankGame.Network;
 using TankGame.Tank.Components;
+using TankGame.Audio;
 using UnityEngine.Events;
 
 namespace TankGame.Tank
@@ -450,7 +451,7 @@ namespace TankGame.Tank
             if (weaponSwitchAudioSource == null || weaponSwitchSound == null)
                 return;
 
-            weaponSwitchAudioSource.PlayOneShot(weaponSwitchSound, weaponSwitchVolume);
+            weaponSwitchAudioSource.PlayOneShot(weaponSwitchSound, SfxVolumeUtility.GetScaled(weaponSwitchVolume));
         }
 
         private void ResolveWeaponSlots()
@@ -563,3 +564,4 @@ namespace TankGame.Tank
         #endregion
     }
 }
+

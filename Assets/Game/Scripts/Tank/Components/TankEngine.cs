@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Tank;
+using TankGame.Audio;
 
 namespace TankGame.Tank.Components
 {
@@ -216,13 +217,13 @@ namespace TankGame.Tank.Components
             if (IsLocalPlayerTank())
             {
                 if (engineAudioSource != null && engineStartSound != null)
-                    engineAudioSource.PlayOneShot(engineStartSound);
+                    engineAudioSource.PlayOneShot(engineStartSound, SfxVolumeUtility.GetScaled(1f));
                 if (engineAudioSource != null && engineLoopSound != null)
                 {
                     engineAudioSource.clip = engineLoopSound;
                     engineAudioSource.loop = true;
                     engineAudioSource.pitch = minEnginePitch;
-                    engineAudioSource.volume = minEngineVolume;
+                    engineAudioSource.volume = SfxVolumeUtility.GetScaled(minEngineVolume);
                     engineAudioSource.Play();
                 }
             }
@@ -253,7 +254,7 @@ namespace TankGame.Tank.Components
             if (engineAudioSource != null && engineAudioSource.isPlaying)
                 engineAudioSource.Stop();
             if (IsLocalPlayerTank() && engineAudioSource != null && engineStopSound != null)
-                engineAudioSource.PlayOneShot(engineStopSound);
+                engineAudioSource.PlayOneShot(engineStopSound, SfxVolumeUtility.GetScaled(1f));
         }
         
         /// <summary>
@@ -300,7 +301,8 @@ namespace TankGame.Tank.Components
             if (IsLocalPlayerTank() && engineAudioSource != null && engineAudioSource.isPlaying)
             {
                 engineAudioSource.pitch = Mathf.Lerp(minEnginePitch, maxEnginePitch, movementFactor);
-                engineAudioSource.volume = Mathf.Lerp(minEngineVolume, maxEngineVolume, movementFactor);
+                float baseVolume = Mathf.Lerp(minEngineVolume, maxEngineVolume, movementFactor);
+                engineAudioSource.volume = SfxVolumeUtility.GetScaled(baseVolume);
             }
         }
         

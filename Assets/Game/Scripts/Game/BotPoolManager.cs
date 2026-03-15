@@ -34,10 +34,19 @@ namespace TankGame.Game
 
         private void Start()
         {
+            MatchStartMode mode = GameSessionSettings.StartMode;
             if (ShouldSkipBotSpawn())
+            {
+                Debug.Log($"[BotPoolManager] Bot spawn skipped. disableBotsForLobbyMode={disableBotsForLobbyMode}, mode={mode}.");
                 return;
+            }
 
             ResolveBotCountFromSession();
+            if (botCount <= 0)
+            {
+                Debug.Log($"[BotPoolManager] Bot spawn skipped because resolved botCount={botCount} (mode={mode}).");
+                return;
+            }
 
             if (initialSpawnDelay > 0f)
             {

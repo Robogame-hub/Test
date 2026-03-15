@@ -1,6 +1,7 @@
 using UnityEngine;
 using TankGame.Commands;
 using TankGame.Settings;
+using TankGame.Menu;
 
 namespace TankGame.Tank
 {
@@ -25,13 +26,19 @@ namespace TankGame.Tank
         private void Start()
         {
             inputSettings = InputSettings.Instance;
-            UnlockCursor();
+            if (hideCursorInGame)
+                LockCursor();
+            else
+                UnlockCursor();
         }
 
         private void Update()
         {
             if (Input.GetKeyDown(toggleCursorKey))
             {
+                if (BattlePauseMenuController.TryHandleEscapePressed())
+                    return;
+
                 ToggleCursor();
             }
         }
@@ -144,7 +151,7 @@ namespace TankGame.Tank
 
         private void LockCursor()
         {
-            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.lockState = CursorLockMode.None;
             Cursor.visible = false;
             isCursorLocked = true;
         }
@@ -182,3 +189,4 @@ namespace TankGame.Tank
         }
     }
 }
+

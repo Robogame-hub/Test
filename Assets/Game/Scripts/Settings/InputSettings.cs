@@ -1,119 +1,94 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace TankGame.Settings
 {
     /// <summary>
-    /// Настройки управления (чувствительность мыши, инверсия и т.д.)
-    /// Сохраняется через PlayerPrefs
+    /// Input settings singleton.
+    /// Horizontal sensitivity is the only sensitivity setting in use.
+    /// Legacy vertical/master properties are kept for compatibility and mapped to horizontal.
     /// </summary>
     public class InputSettings : MonoBehaviour
     {
         private static InputSettings instance;
-        private static bool isQuitting = false;
-        
+        private static bool isQuitting;
+
         public static InputSettings Instance
         {
             get
             {
-                // ОПТИМИЗАЦИЯ: Не создаем instance при выходе из игры
                 if (isQuitting)
-                {
-                    Debug.LogWarning("[InputSettings] Instance requested during application quit. Returning null.");
                     return null;
-                }
-                
+
                 if (instance == null)
                 {
-                    // ИСПРАВЛЕНО: Кэшируем result FindObjectOfType
-                    // FindObjectOfType - очень медленная операция!
-                    InputSettings[] existingInstances = FindObjectsOfType<InputSettings>();
-                    
-                    if (existingInstances.Length > 1)
+                    InputSettings[] existing = FindObjectsOfType<InputSettings>();
+                    if (existing.Length > 0)
                     {
-                        Debug.LogWarning($"[InputSettings] Found {existingInstances.Length} instances! Should only be one. Destroying extras.");
-                        for (int i = 1; i < existingInstances.Length; i++)
+                        instance = existing[0];
+                        for (int i = 1; i < existing.Length; i++)
                         {
-                            Destroy(existingInstances[i].gameObject);
+                            if (existing[i] != null)
+                                Destroy(existing[i].gameObject);
                         }
-                    }
-                    
-                    if (existingInstances.Length > 0)
-                    {
-                        instance = existingInstances[0];
                     }
                     else
                     {
-                        // Создаем новый instance только если не нашли
                         GameObject go = new GameObject("InputSettings");
                         instance = go.AddComponent<InputSettings>();
                         DontDestroyOnLoad(go);
-                        Debug.Log("[InputSettings] Created new InputSettings singleton");
                     }
                 }
+
                 return instance;
             }
         }
 
         [Header("Mouse Sensitivity")]
-        [Tooltip("Чувствительность по горизонтали (башня)")]
-        [SerializeField] private float horizontalSensitivity = 1.0f;
-        
-        [Tooltip("Чувствительность по вертикали (ствол)")]
-        [SerializeField] private float verticalSensitivity = 1.0f;
-        
-        [Tooltip("Общий множитель чувствительности")]
-        [SerializeField] private float masterSensitivity = 1.0f;
+        [SerializeField] private float horizontalSensitivity = 1f;
+
+        [Header("Legacy Sensitivity (compatibility only)")]
+        [SerializeField] private float verticalSensitivity = 1f;
+        [SerializeField] private float masterSensitivity = 1f;
 
         [Header("Sensitivity Range")]
-        [Tooltip("Минимальная чувствительность")]
         [SerializeField] private float minSensitivity = 0.1f;
-        
-        [Tooltip("Максимальная чувствительность")]
-        [SerializeField] private float maxSensitivity = 5.0f;
+        [SerializeField] private float maxSensitivity = 5f;
 
         [Header("Invert")]
-        [Tooltip("Инвертировать вертикальную ось")]
-        [SerializeField] private bool invertY = false;
-        
-        [Tooltip("Инвертировать горизонтальную ось")]
-        [SerializeField] private bool invertX = false;
+        [SerializeField] private bool invertY;
+        [SerializeField] private bool invertX;
 
-        // PlayerPrefs ключи
         private const string KEY_HORIZONTAL_SENS = "Input_HorizontalSensitivity";
         private const string KEY_VERTICAL_SENS = "Input_VerticalSensitivity";
         private const string KEY_MASTER_SENS = "Input_MasterSensitivity";
         private const string KEY_INVERT_Y = "Input_InvertY";
         private const string KEY_INVERT_X = "Input_InvertX";
 
-        // Публичные свойства
         public float HorizontalSensitivity
         {
             get => horizontalSensitivity;
             set
             {
                 horizontalSensitivity = Mathf.Clamp(value, minSensitivity, maxSensitivity);
+                // keep legacy mirrors in sync
+                verticalSensitivity = horizontalSensitivity;
+                masterSensitivity = horizontalSensitivity;
                 SaveSettings();
             }
         }
 
+        // Backward compatibility: mapped to horizontal.
         public float VerticalSensitivity
         {
-            get => verticalSensitivity;
-            set
-            {
-                verticalSensitivity = Mathf.Clamp(value, minSensitivity, maxSensitivity);
-                SaveSettings();
-            }
+            get => horizontalSensitivity;
+            set => HorizontalSensitivity = value;
         }
 
+        // Backward compatibility: mapped to horizontal.
         public float MasterSensitivity
         {
-            get => masterSensitivity;
-            set
-            {
-                masterSensitivity = Mathf.Clamp(value, minSensitivity, maxSensitivity);
-                SaveSettings();
-            }
+            get => horizontalSensitivity;
+            set => HorizontalSensitivity = value;
         }
 
         public bool InvertY
@@ -143,7 +118,6 @@ namespace TankGame.Settings
         {
             if (instance != null && instance != this)
             {
-                Debug.LogWarning($"[InputSettings] Duplicate instance detected on {gameObject.name}. Destroying.");
                 Destroy(gameObject);
                 return;
             }
@@ -152,42 +126,31 @@ namespace TankGame.Settings
             DontDestroyOnLoad(gameObject);
             LoadSettings();
         }
-        
+
         private void OnApplicationQuit()
         {
             isQuitting = true;
             instance = null;
         }
-        
+
         private void OnDestroy()
         {
             if (instance == this)
-            {
                 instance = null;
-            }
         }
 
-        /// <summary>
-        /// Получить итоговую чувствительность по горизонтали с учетом инверсии
-        /// </summary>
         public float GetEffectiveHorizontalSensitivity()
         {
-            float sens = horizontalSensitivity * masterSensitivity;
+            float sens = horizontalSensitivity;
             return invertX ? -sens : sens;
         }
 
-        /// <summary>
-        /// Получить итоговую чувствительность по вертикали с учетом инверсии
-        /// </summary>
         public float GetEffectiveVerticalSensitivity()
         {
-            float sens = verticalSensitivity * masterSensitivity;
+            float sens = horizontalSensitivity;
             return invertY ? -sens : sens;
         }
 
-        /// <summary>
-        /// Применить дельту мыши с учетом всех настроек
-        /// </summary>
         public Vector2 ApplySensitivity(Vector2 mouseDelta)
         {
             return new Vector2(
@@ -196,39 +159,31 @@ namespace TankGame.Settings
             );
         }
 
-        /// <summary>
-        /// Сохранить настройки
-        /// </summary>
         public void SaveSettings()
         {
             PlayerPrefs.SetFloat(KEY_HORIZONTAL_SENS, horizontalSensitivity);
-            PlayerPrefs.SetFloat(KEY_VERTICAL_SENS, verticalSensitivity);
-            PlayerPrefs.SetFloat(KEY_MASTER_SENS, masterSensitivity);
+            // keep legacy keys for old scenes/components
+            PlayerPrefs.SetFloat(KEY_VERTICAL_SENS, horizontalSensitivity);
+            PlayerPrefs.SetFloat(KEY_MASTER_SENS, horizontalSensitivity);
             PlayerPrefs.SetInt(KEY_INVERT_Y, invertY ? 1 : 0);
             PlayerPrefs.SetInt(KEY_INVERT_X, invertX ? 1 : 0);
             PlayerPrefs.Save();
         }
 
-        /// <summary>
-        /// Загрузить настройки
-        /// </summary>
         public void LoadSettings()
         {
-            horizontalSensitivity = PlayerPrefs.GetFloat(KEY_HORIZONTAL_SENS, horizontalSensitivity);
-            verticalSensitivity = PlayerPrefs.GetFloat(KEY_VERTICAL_SENS, verticalSensitivity);
-            masterSensitivity = PlayerPrefs.GetFloat(KEY_MASTER_SENS, masterSensitivity);
+            horizontalSensitivity = Mathf.Clamp(PlayerPrefs.GetFloat(KEY_HORIZONTAL_SENS, horizontalSensitivity), minSensitivity, maxSensitivity);
+            verticalSensitivity = horizontalSensitivity;
+            masterSensitivity = horizontalSensitivity;
             invertY = PlayerPrefs.GetInt(KEY_INVERT_Y, 0) == 1;
             invertX = PlayerPrefs.GetInt(KEY_INVERT_X, 0) == 1;
         }
 
-        /// <summary>
-        /// Сбросить настройки к значениям по умолчанию
-        /// </summary>
         public void ResetToDefaults()
         {
-            horizontalSensitivity = 1.0f;
-            verticalSensitivity = 1.0f;
-            masterSensitivity = 1.0f;
+            horizontalSensitivity = 1f;
+            verticalSensitivity = horizontalSensitivity;
+            masterSensitivity = horizontalSensitivity;
             invertY = false;
             invertX = false;
             SaveSettings();
@@ -238,10 +193,9 @@ namespace TankGame.Settings
         private void OnValidate()
         {
             horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, minSensitivity, maxSensitivity);
-            verticalSensitivity = Mathf.Clamp(verticalSensitivity, minSensitivity, maxSensitivity);
-            masterSensitivity = Mathf.Clamp(masterSensitivity, minSensitivity, maxSensitivity);
+            verticalSensitivity = horizontalSensitivity;
+            masterSensitivity = horizontalSensitivity;
         }
 #endif
     }
 }
-

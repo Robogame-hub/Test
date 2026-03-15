@@ -1,6 +1,7 @@
 using UnityEngine;
 using TankGame.Utils;
 using TankGame.Tank;
+using TankGame.Audio;
 using BulletComponent = TankGame.Weapons.Bullet;
 using UnityEngine.Events;
 
@@ -510,7 +511,7 @@ namespace TankGame.Tank.Components
             if (weaponAudioSource == null || fireSound == null)
                 return;
 
-            weaponAudioSource.PlayOneShot(fireSound, weaponSfxVolume);
+            weaponAudioSource.PlayOneShot(fireSound, SfxVolumeUtility.GetScaled(weaponSfxVolume));
         }
 
         private void PlayReloadSound()
@@ -519,7 +520,7 @@ namespace TankGame.Tank.Components
                 return;
             if (weaponAudioSource == null || reloadSound == null)
                 return;
-            weaponAudioSource.PlayOneShot(reloadSound, weaponSfxVolume);
+            weaponAudioSource.PlayOneShot(reloadSound, SfxVolumeUtility.GetScaled(weaponSfxVolume));
         }
 
         public void TryPlayEmptyShotSound()
@@ -531,7 +532,7 @@ namespace TankGame.Tank.Components
             if (Time.time - lastEmptyShotSoundTime < emptyShotSoundCooldown)
                 return;
             lastEmptyShotSoundTime = Time.time;
-            weaponAudioSource.PlayOneShot(emptyShotSound, weaponSfxVolume);
+            weaponAudioSource.PlayOneShot(emptyShotSound, SfxVolumeUtility.GetScaled(weaponSfxVolume));
         }
 
         public void SetAimPoint(Vector3 worldPoint)

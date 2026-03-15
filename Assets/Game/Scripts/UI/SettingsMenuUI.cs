@@ -52,16 +52,11 @@ namespace TankGame.UI
             
             // Инициализация слайдеров
             InitializeSliders();
+            HideUnsupportedSensitivityControls();
             
             // Добавляем слушателей
-            if (masterSensitivitySlider != null)
-                masterSensitivitySlider.onValueChanged.AddListener(OnMasterSensitivityChanged);
-            
             if (horizontalSensitivitySlider != null)
                 horizontalSensitivitySlider.onValueChanged.AddListener(OnHorizontalSensitivityChanged);
-            
-            if (verticalSensitivitySlider != null)
-                verticalSensitivitySlider.onValueChanged.AddListener(OnVerticalSensitivityChanged);
             
             if (invertYToggle != null)
                 invertYToggle.onValueChanged.AddListener(OnInvertYChanged);
@@ -111,14 +106,8 @@ namespace TankGame.UI
         /// </summary>
         private void LoadCurrentSettings()
         {
-            if (masterSensitivitySlider != null)
-                masterSensitivitySlider.value = settings.MasterSensitivity;
-            
             if (horizontalSensitivitySlider != null)
                 horizontalSensitivitySlider.value = settings.HorizontalSensitivity;
-            
-            if (verticalSensitivitySlider != null)
-                verticalSensitivitySlider.value = settings.VerticalSensitivity;
             
             if (invertYToggle != null)
                 invertYToggle.isOn = settings.InvertY;
@@ -134,23 +123,15 @@ namespace TankGame.UI
         /// </summary>
         private void UpdateAllLabels()
         {
-            if (masterSensitivityText != null)
-                masterSensitivityText.text = settings.MasterSensitivity.ToString("F2");
-            
             if (horizontalSensitivityText != null)
                 horizontalSensitivityText.text = settings.HorizontalSensitivity.ToString("F2");
-            
-            if (verticalSensitivityText != null)
-                verticalSensitivityText.text = settings.VerticalSensitivity.ToString("F2");
         }
 
         #region Callbacks
 
         private void OnMasterSensitivityChanged(float value)
         {
-            settings.MasterSensitivity = value;
-            if (masterSensitivityText != null)
-                masterSensitivityText.text = value.ToString("F2");
+            // Legacy callback: master sensitivity removed.
         }
 
         private void OnHorizontalSensitivityChanged(float value)
@@ -162,9 +143,7 @@ namespace TankGame.UI
 
         private void OnVerticalSensitivityChanged(float value)
         {
-            settings.VerticalSensitivity = value;
-            if (verticalSensitivityText != null)
-                verticalSensitivityText.text = value.ToString("F2");
+            // Legacy callback: vertical sensitivity removed.
         }
 
         private void OnInvertYChanged(bool value)
@@ -193,14 +172,8 @@ namespace TankGame.UI
         private void OnDestroy()
         {
             // Удаляем слушателей
-            if (masterSensitivitySlider != null)
-                masterSensitivitySlider.onValueChanged.RemoveListener(OnMasterSensitivityChanged);
-            
             if (horizontalSensitivitySlider != null)
                 horizontalSensitivitySlider.onValueChanged.RemoveListener(OnHorizontalSensitivityChanged);
-            
-            if (verticalSensitivitySlider != null)
-                verticalSensitivitySlider.onValueChanged.RemoveListener(OnVerticalSensitivityChanged);
             
             if (invertYToggle != null)
                 invertYToggle.onValueChanged.RemoveListener(OnInvertYChanged);
@@ -213,6 +186,18 @@ namespace TankGame.UI
             
             if (closeButton != null)
                 closeButton.onClick.RemoveListener(OnCloseClicked);
+        }
+
+        private void HideUnsupportedSensitivityControls()
+        {
+            if (masterSensitivitySlider != null)
+                masterSensitivitySlider.gameObject.SetActive(false);
+            if (verticalSensitivitySlider != null)
+                verticalSensitivitySlider.gameObject.SetActive(false);
+            if (masterSensitivityText != null)
+                masterSensitivityText.gameObject.SetActive(false);
+            if (verticalSensitivityText != null)
+                verticalSensitivityText.gameObject.SetActive(false);
         }
     }
 }

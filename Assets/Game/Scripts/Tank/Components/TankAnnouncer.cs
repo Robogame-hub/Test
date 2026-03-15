@@ -1,5 +1,6 @@
 using UnityEngine;
 using TankGame.Tank;
+using TankGame.Audio;
 
 namespace TankGame.Tank.Components
 {
@@ -65,7 +66,7 @@ namespace TankGame.Tank.Components
                 announcerAudioSource.playOnAwake = false;
                 announcerAudioSource.loop = false;
                 announcerAudioSource.spatialBlend = 0f;
-                announcerAudioSource.volume = announcerVolume;
+                announcerAudioSource.volume = SfxVolumeUtility.GetScaled(announcerVolume);
             }
         }
 
@@ -120,7 +121,7 @@ namespace TankGame.Tank.Components
             if (clip == null)
                 return false;
 
-            announcerAudioSource.volume = announcerVolume;
+            announcerAudioSource.volume = SfxVolumeUtility.GetScaled(announcerVolume);
             announcerAudioSource.PlayOneShot(clip);
 
             lastAnyAnnouncerTime = Time.time;

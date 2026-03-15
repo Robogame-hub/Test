@@ -11,12 +11,16 @@ namespace TankGame.Menu
         private static readonly Dictionary<string, string[]> Table = new Dictionary<string, string[]>
         {
             ["menu.title"] = new[] { "ТАНКИ", "TANKS", "CHARS", "PANZER", "???" },
-            ["menu.play"] = new[] { "Играть", "Play", "Jouer", "Spielen", "???" },
-            ["menu.sandbox"] = new[] { "Песочница", "Sandbox", "Bac a sable", "Sandbox", "???????" },
+            ["menu.play"] = new[] { "Сетевая игра", "Network game", "Jeu en reseau", "Netzwerkspiel", "???" },
+            ["menu.sandbox"] = new[] { "Одиночная игра", "Single player", "Jeu solo", "Einzelspieler", "???????" },
             ["menu.settings"] = new[] { "Настройки", "Settings", "Parametres", "Einstellungen", "??" },
             ["menu.exit"] = new[] { "Выход", "Exit", "Quitter", "Beenden", "??" },
             ["menu.back"] = new[] { "Назад", "Back", "Retour", "Zuruck", "??" },
             ["menu.start_match"] = new[] { "Начать матч", "Start match", "Demarrer le match", "Match starten", "??" },
+            ["pause.title"] = new[] { "Пауза", "Pause", "Pause", "Pause", "???" },
+            ["pause.restart"] = new[] { "Рестарт", "Restart", "Redemarrer", "Neustart", "???" },
+            ["pause.main_menu"] = new[] { "Выход в главное меню", "Back to main menu", "Retour au menu principal", "Zum Hauptmenu", "???" },
+            ["pause.desktop"] = new[] { "Выход на рабочий стол", "Exit to desktop", "Quitter le jeu", "Zum Desktop", "???" },
 
             ["lobby.title"] = new[] { "Лобби", "Lobby", "Lobby", "Lobby", "???" },
             ["lobby.rooms"] = new[] { "Комнаты", "Rooms", "Salles", "Raume", "???" },

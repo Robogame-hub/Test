@@ -46,22 +46,8 @@ namespace TankGame.Menu
         [Header("Button Feedback")]
         [Tooltip("Источник звука для фидбека кнопок переключения танка.")]
         public AudioSource buttonFeedbackAudioSource;
-        [Tooltip("Звук при наведении на кнопки переключения танка.")]
-        public AudioClip buttonHoverSound;
-        [Tooltip("Звук при нажатии на кнопки переключения танка.")]
-        public AudioClip buttonClickSound;
-        [Tooltip("Базовый цвет текста кнопок переключения танка.")]
-        public Color buttonNormalTextColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
-        [Tooltip("Цвет текста кнопок переключения при наведении.")]
-        public Color buttonHoverTextColor = Color.red;
-        [Tooltip("Цвет текста кнопок переключения при нажатии.")]
-        public Color buttonPressedTextColor = Color.white;
-        [Tooltip("Множитель масштаба текста кнопок переключения при наведении.")]
-        [Min(1f)]
-        public float buttonHoverTextScale = 1.08f;
-        [Tooltip("Скорость анимации масштаба текста кнопок переключения.")]
-        [Min(1f)]
-        public float buttonScaleLerpSpeed = 16f;
+        [Tooltip("Общий конфиг параметров фидбека кнопок. Если не задан, пробуем загрузить Resources/Menu/MenuButtonFeedbackConfig.")]
+        public MenuButtonFeedbackConfig sharedButtonFeedbackConfig;
 
         [Header("Stats Hover")]
         [Tooltip("Множитель масштаба строки характеристики при наведении.")]
@@ -85,28 +71,20 @@ namespace TankGame.Menu
             currentIndex = Mathf.Clamp(GameSessionSettings.SelectedTankIndex, 0, Mathf.Max(0, tanks.Count - 1));
 
             EnsureStatBars();
+            ApplySharedButtonFeedbackConfig();
             ConfigureButtonFeedbacks();
             EnsurePreviewInfrastructure();
             Refresh();
         }
         public void ApplyButtonFeedbackSettings(
             AudioSource audioSource,
-            AudioClip hoverClip,
-            AudioClip clickClip,
-            Color normalColor,
-            Color hoverColor,
-            Color pressedColor,
-            float hoverScale,
-            float lerpSpeed)
+            MenuButtonFeedbackConfig config)
         {
             buttonFeedbackAudioSource = audioSource;
-            buttonHoverSound = hoverClip;
-            buttonClickSound = clickClip;
-            buttonNormalTextColor = normalColor;
-            buttonHoverTextColor = hoverColor;
-            buttonPressedTextColor = pressedColor;
-            buttonHoverTextScale = Mathf.Max(1f, hoverScale);
-            buttonScaleLerpSpeed = Mathf.Max(1f, lerpSpeed);
+            if (config != null)
+                sharedButtonFeedbackConfig = config;
+            else if (sharedButtonFeedbackConfig == null)
+                sharedButtonFeedbackConfig = MenuButtonFeedbackConfig.LoadDefault();
 
             ConfigureButtonFeedbacks();
         }
@@ -142,14 +120,55 @@ namespace TankGame.Menu
             feedback.button = button;
             feedback.targetText = button.GetComponentInChildren<TMP_Text>(true);
             feedback.Configure(
-                buttonNormalTextColor,
-                buttonHoverTextColor,
-                buttonPressedTextColor,
-                buttonHoverTextScale,
-                buttonScaleLerpSpeed,
+                GetButtonNormalColor(),
+                GetButtonHoverColor(),
+                GetButtonPressedColor(),
+                GetButtonHoverScale(),
+                GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
-                buttonHoverSound,
-                buttonClickSound);
+                GetButtonHoverSound(),
+                GetButtonClickSound());
+        }
+
+        private void ApplySharedButtonFeedbackConfig()
+        {
+            if (sharedButtonFeedbackConfig == null)
+                sharedButtonFeedbackConfig = MenuButtonFeedbackConfig.LoadDefault();
+        }
+
+        private Color GetButtonNormalColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        }
+
+        private Color GetButtonHoverColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : Color.red;
+        }
+
+        private Color GetButtonPressedColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : Color.white;
+        }
+
+        private float GetButtonHoverScale()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.hoverTextScale) : 1.08f;
+        }
+
+        private float GetButtonScaleLerpSpeed()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.scaleLerpSpeed) : 16f;
+        }
+
+        private AudioClip GetButtonHoverSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverSound : null;
+        }
+
+        private AudioClip GetButtonClickSound()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.clickSound : null;
         }
         private void EnsureStatBars()
         {

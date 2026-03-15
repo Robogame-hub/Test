@@ -1,6 +1,7 @@
 using UnityEngine;
 using TankGame.Core;
 using TankGame.Tank.Components;
+using TankGame.Audio;
 
 namespace TankGame.Weapons
 {
@@ -304,7 +305,7 @@ namespace TankGame.Weapons
         {
             if (ricochetBounceSound == null)
                 return;
-            AudioSource.PlayClipAtPoint(ricochetBounceSound, hitPoint, impactSfxVolume);
+            AudioSource.PlayClipAtPoint(ricochetBounceSound, hitPoint, SfxVolumeUtility.GetScaled(impactSfxVolume));
         }
         
         /// <summary>
@@ -339,7 +340,7 @@ namespace TankGame.Weapons
             if (clipToPlay == null)
                 return;
 
-            AudioSource.PlayClipAtPoint(clipToPlay, hitPoint, impactSfxVolume);
+            AudioSource.PlayClipAtPoint(clipToPlay, hitPoint, SfxVolumeUtility.GetScaled(impactSfxVolume));
         }
 
         private void PlayImpactEffect(Vector3 position, Vector3 normal)
@@ -545,4 +546,3 @@ namespace TankGame.Weapons
         #endregion
     }
 }
-
