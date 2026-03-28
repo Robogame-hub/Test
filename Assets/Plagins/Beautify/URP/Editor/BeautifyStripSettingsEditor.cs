@@ -22,7 +22,17 @@ namespace Beautify.Universal {
         SerializedProperty stripUnityBloom, stripUnityChromaticAberration;
         SerializedProperty stripUnityDistortion, stripUnityDebugVariants;
 
+        bool HasValidTargets() {
+            if (targets == null || targets.Length == 0) return false;
+            for (int i = 0; i < targets.Length; i++) {
+                if (targets[i] == null) return false;
+            }
+            return true;
+        }
+
         void OnEnable() {
+            if (!HasValidTargets()) return;
+
             stripBeautifyTonemappingACES = serializedObject.FindProperty("stripBeautifyTonemappingACES");
             stripBeautifyTonemappingACESFitted = serializedObject.FindProperty("stripBeautifyTonemappingACESFitted");
             stripBeautifyTonemappingAGX = serializedObject.FindProperty("stripBeautifyTonemappingAGX");
@@ -57,6 +67,10 @@ namespace Beautify.Universal {
         }
 
         public override void OnInspectorGUI() {
+            if (!HasValidTargets()) {
+                EditorGUILayout.HelpBox("Beautify Strip Settings target is missing or invalid.", MessageType.Warning);
+                return;
+            }
 
             serializedObject.Update();
 
