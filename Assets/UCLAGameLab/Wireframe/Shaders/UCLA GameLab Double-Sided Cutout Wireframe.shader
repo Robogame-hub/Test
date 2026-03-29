@@ -7,6 +7,56 @@ Shader "UCLA Game Lab/Wireframe/Double-Sided Cutout"
 		_Thickness ("Thickness", Float) = 1
 	}
 
+	SubShader
+	{
+		Tags { "RenderType"="TransparentCutout" "Queue"="AlphaTest" }
+		Pass
+		{
+			Blend SrcAlpha OneMinusSrcAlpha
+			Cull Off
+			LOD 100
+
+			CGPROGRAM
+				#pragma only_renderers gles gles3
+				#pragma vertex vertWeb
+				#pragma fragment fragWeb
+				#include "UnityCG.cginc"
+
+				sampler2D _MainTex;
+				float4 _MainTex_ST;
+				float4 _Color;
+
+				struct appdata
+				{
+					float4 vertex : POSITION;
+					float2 uv : TEXCOORD0;
+				};
+
+				struct v2f
+				{
+					float4 pos : SV_POSITION;
+					float2 uv : TEXCOORD0;
+				};
+
+				v2f vertWeb(appdata v)
+				{
+					v2f o;
+					o.pos = UnityObjectToClipPos(v.vertex);
+					o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+					return o;
+				}
+
+				fixed4 fragWeb(v2f i) : SV_Target
+				{
+					fixed4 col = tex2D(_MainTex, i.uv) * _Color;
+					clip(col.a - 0.5);
+					col.a = 1.0;
+					return col;
+				}
+			ENDCG
+		}
+	}
+
 	SubShader 
 	{
 		Tags { "RenderType"="Transparent" "Queue"="Transparent" }

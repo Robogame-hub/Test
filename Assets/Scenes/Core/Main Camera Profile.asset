@@ -59,7 +59,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66f335fb1ffd8684294ad653bf1c7564, type: 3}
   m_Name: ColorAdjustments
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.ColorAdjustments
-  active: 0
+  active: 1
   postExposure:
     m_OverrideState: 0
     m_Value: 0
@@ -156,7 +156,7 @@ MonoBehaviour:
     m_Value: 0
   sharpenIntensity:
     m_OverrideState: 1
-    m_Value: 5
+    m_Value: 10
   sharpenDepthThreshold:
     m_OverrideState: 1
     m_Value: 0.05
@@ -169,7 +169,7 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 0
   sharpenRelaxation:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 0.2
   sharpenClamp:
     m_OverrideState: 0
@@ -178,7 +178,7 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 0.5
   sharpenMotionRestoreSpeed:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 0.5
   sharpenExclusionLayerMask:
     m_OverrideState: 0
@@ -907,7 +907,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 558a8e2b6826cf840aae193990ba9f2e, type: 3}
   m_Name: ShadowsMidtonesHighlights
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.ShadowsMidtonesHighlights
-  active: 0
+  active: 1
   shadows:
     m_OverrideState: 1
     m_Value: {x: 0.7536262, y: 0.8075286, z: 1, w: 0}

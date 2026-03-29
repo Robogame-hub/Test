@@ -175,7 +175,7 @@ Material:
     - _UseCustomNoise: 0
     - _UseGradientColor: 0
     - _UseSinOrTexture: 0
-    - _WireThickness: 600
+    - _WireThickness: 6
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
@@ -188,6 +188,7 @@ Material:
     - _Emission1: {r: 0.4059408, g: 3.4178011, b: 0, a: 1}
     - _Emission2: {r: 0.073946424, g: 3.3643982, b: 0, a: 1}
     - _EmissionColor: {r: 1, g: 0.1951502, b: 0, a: 1}
+    - _FillColor: {r: 0, g: 0, b: 0, a: 0}
     - _FlowDirection: {r: 1, g: 0, b: 0, a: 0}
     - _MovementDirection: {r: 0, g: -1, b: 0, a: 1}
     - _Noise1SpeedXY: {r: 0, g: 0, b: 0, a: 0}
@@ -202,7 +203,7 @@ Material:
     - _SpeedXY: {r: 0, g: 0, b: 0, a: 0}
     - _TillingXY: {r: 1, g: 1, b: 0, a: 0}
     - _WindDirection: {r: 1, g: 0, b: 0, a: 1}
-    - _WireColor: {r: 0.21960786, g: 0.9176471, b: 0.023529414, a: 1}
+    - _WireColor: {r: 0.24614811, g: 1, b: 0, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &569618614858949664

@@ -2,118 +2,66 @@ Shader "Universal Render Pipeline/VR/SpatialMapping/Wireframe Single Color"
 {
     Properties
     {
-        _WireThickness ("Wire Thickness", Range(0, 800)) = 100
+        _WireThickness ("Wire Thickness", Range(0.5, 6.0)) = 1.5
         _WireColor ("Wire Color", Color) = (0.0, 1.0, 1.0, 1.0)
+        _FillColor ("Fill Color", Color) = (0, 0, 0, 0)
     }
 
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" "RenderPipeline"="UniversalPipeline" }
         LOD 100
 
         Pass
         {
-            Name "Spatial Mapping Wireframe Single Color"
+            Name "Spatial Mapping Color Fallback"
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            Cull Off
 
             HLSLPROGRAM
-            #pragma require geometry
-
             #pragma vertex vert
-            #pragma geometry geom
             #pragma fragment frag
+            #pragma target 3.0
 
-            #pragma multi_compile_instancing
-
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitInput.hlsl"
-
-            float _WireThickness;
-            half4 _WireColor;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
+                float3 barycentric : TEXCOORD3;
             };
 
-            struct v2g
+            struct Varyings
             {
-                float4 projectionSpaceVertex : SV_POSITION;
-                UNITY_VERTEX_OUTPUT_STEREO
+                float4 positionCS : SV_POSITION;
+                float3 barycentric : TEXCOORD0;
             };
 
-            v2g vert(Attributes input)
+            CBUFFER_START(UnityPerMaterial)
+                half4 _WireColor;
+                half4 _FillColor;
+                float _WireThickness;
+            CBUFFER_END
+
+            Varyings vert(Attributes input)
             {
-                v2g output = (v2g)0;
-
-                UNITY_SETUP_INSTANCE_ID(input);
-                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
-
-                VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
-                output.projectionSpaceVertex = vertexInput.positionCS;
-
+                Varyings output;
+                VertexPositionInputs vpi = GetVertexPositionInputs(input.positionOS.xyz);
+                output.positionCS = vpi.positionCS;
+                output.barycentric = input.barycentric;
                 return output;
             }
 
-            struct g2f
+            half4 frag(Varyings input) : SV_Target
             {
-                float4 projectionSpaceVertex : SV_POSITION;
-                float4 dist : TEXCOORD0;
-                UNITY_VERTEX_OUTPUT_STEREO
-            };
-
-            [maxvertexcount(3)]
-            void geom(triangle v2g i[3], inout TriangleStream<g2f> triangleStream)
-            {
-                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i[0]);
-
-                float2 p0 = i[0].projectionSpaceVertex.xy / i[0].projectionSpaceVertex.w;
-                float2 p1 = i[1].projectionSpaceVertex.xy / i[1].projectionSpaceVertex.w;
-                float2 p2 = i[2].projectionSpaceVertex.xy / i[2].projectionSpaceVertex.w;
-
-                float2 edge0 = p2 - p1;
-                float2 edge1 = p2 - p0;
-                float2 edge2 = p1 - p0;
-
-                float area = abs(edge1.x * edge2.y - edge1.y * edge2.x);
-                float wireThickness = 800 - _WireThickness;
-
-                g2f o;
-                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-
-                o.projectionSpaceVertex = i[0].projectionSpaceVertex;
-                o.dist.xyz = float3((area / length(edge0)), 0.0, 0.0) * o.projectionSpaceVertex.w * wireThickness;
-                o.dist.w = 1.0 / o.projectionSpaceVertex.w;
-                triangleStream.Append(o);
-
-                o.projectionSpaceVertex = i[1].projectionSpaceVertex;
-                o.dist.xyz = float3(0.0, (area / length(edge1)), 0.0) * o.projectionSpaceVertex.w * wireThickness;
-                o.dist.w = 1.0 / o.projectionSpaceVertex.w;
-                triangleStream.Append(o);
-
-                o.projectionSpaceVertex = i[2].projectionSpaceVertex;
-                o.dist.xyz = float3(0.0, 0.0, (area / length(edge2))) * o.projectionSpaceVertex.w * wireThickness;
-                o.dist.w = 1.0 / o.projectionSpaceVertex.w;
-                triangleStream.Append(o);
-            }
-
-            half4 frag(g2f i) : SV_Target
-            {
-                float minDistanceToEdge = min(i.dist.x, min(i.dist.y, i.dist.z)) * i.dist.w;
-
-                if (minDistanceToEdge > 0.9)
-                {
-                    return half4(0, 0, 0, 0);
-                }
-
-                float t = exp2(-2 * minDistanceToEdge * minDistanceToEdge);
-
-                half4 finalColor = lerp(half4(0, 0, 0, 1), _WireColor, t);
-                finalColor.a = t * _WireColor.a;
-                return finalColor;
+                float3 bary = saturate(input.barycentric);
+                float3 fw = max(fwidth(bary), 1e-4);
+                float3 a3 = smoothstep(0.0, fw * _WireThickness, bary);
+                float wire = 1.0 - min(a3.x, min(a3.y, a3.z));
+                return lerp(_FillColor, _WireColor, wire);
             }
             ENDHLSL
         }
     }
-
-    FallBack "Hidden/Universal Render Pipeline/FallbackError"
 }
