@@ -33,6 +33,7 @@ namespace TankGame.Menu
         private GameObject menuPanel;
         private GameObject settingsPanel;
         private Button restartButton;
+        private Button resumeButton;
         private Button settingsButton;
         private Button mainMenuButton;
         private Button desktopButton;
@@ -120,10 +121,12 @@ namespace TankGame.Menu
                 return false;
 
             restartButton = FindInChildrenByName<Button>(menuPanel.transform, "RestartButton");
+            resumeButton = FindFirstInChildrenByNames<Button>(menuPanel.transform, "ResumeButton", "ContinueButton", "BackButton", "CloseButton");
             settingsButton = FindInChildrenByName<Button>(menuPanel.transform, "SettingsButton");
             mainMenuButton = FindInChildrenByName<Button>(menuPanel.transform, "MainMenuButton");
             desktopButton = FindInChildrenByName<Button>(menuPanel.transform, "DesktopButton");
 
+            Rebind(resumeButton, OnResumeClicked);
             Rebind(settingsButton, OpenSettingsPanel);
             Rebind(mainMenuButton, OnBackToMainMenuClicked);
             Rebind(desktopButton, OnExitDesktopClicked);
@@ -315,6 +318,7 @@ namespace TankGame.Menu
         {
             EnsureButtonFeedbackAudioSource();
             ConfigureButtonFeedback(restartButton);
+            ConfigureButtonFeedback(resumeButton);
             ConfigureButtonFeedback(settingsButton);
             ConfigureButtonFeedback(mainMenuButton);
             ConfigureButtonFeedback(desktopButton);
@@ -586,6 +590,11 @@ namespace TankGame.Menu
             LoadSceneWithFallback(CoreSceneName, CoreScenePath, "BattlePauseMenuController");
         }
 
+        private void OnResumeClicked()
+        {
+            SetMenuVisible(false);
+        }
+
         private void OnBackToMainMenuClicked()
         {
             SetMenuVisible(false);
@@ -602,9 +611,17 @@ namespace TankGame.Menu
 
         private static void LoadSceneWithFallback(string sceneName, string scenePath, string logPrefix)
         {
+            Time.timeScale = 1f;
+            AudioListener.pause = false;
+
             if (Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 SceneManager.LoadScene(sceneName);
+                return;
+            }
+            if (!string.IsNullOrWhiteSpace(scenePath) && Application.CanStreamedLevelBeLoaded(scenePath))
+            {
+                SceneManager.LoadScene(scenePath);
                 return;
             }
 
@@ -673,6 +690,12 @@ namespace TankGame.Menu
             }
 
             return null;
+        }
+
+        private void OnDestroy()
+        {
+            if (instance == this)
+                instance = null;
         }
     }
 }
