@@ -33,7 +33,6 @@ namespace TankGame.Menu
         private GameObject menuPanel;
         private GameObject settingsPanel;
         private Button restartButton;
-        private Button resumeButton;
         private Button settingsButton;
         private Button mainMenuButton;
         private Button desktopButton;
@@ -121,12 +120,10 @@ namespace TankGame.Menu
                 return false;
 
             restartButton = FindInChildrenByName<Button>(menuPanel.transform, "RestartButton");
-            resumeButton = FindFirstInChildrenByNames<Button>(menuPanel.transform, "ResumeButton", "ContinueButton", "BackButton", "CloseButton");
             settingsButton = FindInChildrenByName<Button>(menuPanel.transform, "SettingsButton");
             mainMenuButton = FindInChildrenByName<Button>(menuPanel.transform, "MainMenuButton");
             desktopButton = FindInChildrenByName<Button>(menuPanel.transform, "DesktopButton");
 
-            Rebind(resumeButton, OnResumeClicked);
             Rebind(settingsButton, OpenSettingsPanel);
             Rebind(mainMenuButton, OnBackToMainMenuClicked);
             Rebind(desktopButton, OnExitDesktopClicked);
@@ -318,7 +315,6 @@ namespace TankGame.Menu
         {
             EnsureButtonFeedbackAudioSource();
             ConfigureButtonFeedback(restartButton);
-            ConfigureButtonFeedback(resumeButton);
             ConfigureButtonFeedback(settingsButton);
             ConfigureButtonFeedback(mainMenuButton);
             ConfigureButtonFeedback(desktopButton);
@@ -510,7 +506,8 @@ namespace TankGame.Menu
 
                 bool containsPauseUi = menuPanel.transform.IsChildOf(child)
                     || settingsPanel.transform.IsChildOf(child);
-                if (containsPauseUi)
+                bool isPauseControllerObject = child == transform;
+                if (containsPauseUi || isPauseControllerObject)
                     continue;
 
                 battleUiChildStates[child] = child.gameObject.activeSelf;
@@ -588,11 +585,6 @@ namespace TankGame.Menu
         {
             SetMenuVisible(false);
             LoadSceneWithFallback(CoreSceneName, CoreScenePath, "BattlePauseMenuController");
-        }
-
-        private void OnResumeClicked()
-        {
-            SetMenuVisible(false);
         }
 
         private void OnBackToMainMenuClicked()

@@ -34,6 +34,7 @@ namespace TankGame.Tank.AI
         [SerializeField] private bool autoFindLocalPlayerTarget = true;
         [SerializeField] private float targetSearchInterval = 1f;
         [SerializeField] private float targetAimHeightOffset = 0.6f;
+        [SerializeField] private float targetDetectionRange = 60f;
 
         [Header("Movement")]
         [SerializeField] private float chaseRange = 60f;
@@ -74,6 +75,10 @@ namespace TankGame.Tank.AI
         [SerializeField] private int maxAlternativeRouteAttemptsBeforePatrol = 3;
         [SerializeField] private float blockedNodeDuration = 8f;
         [SerializeField] private float patrolStoppingDistance = 0.4f;
+        [SerializeField] private bool enableFarDistancePatrolFallback = true;
+        [SerializeField] private float farDistanceForPatrolFallback = 55f;
+        [SerializeField] private float farPatrolCheckInterval = 1.5f;
+        [SerializeField] private float idleBeforePatrolDelay = 1f;
 
         [Header("Weapon Switching")]
         [SerializeField] private bool enableWeaponSwitching = true;
@@ -83,6 +88,8 @@ namespace TankGame.Tank.AI
         [Header("Debug")]
         [SerializeField] private bool enableAiDebugLogs = true;
         [SerializeField] private float destinationModeLogCooldown = 0.75f;
+        [SerializeField] [Range(0f, 1f)] private float routeSeparationInfluence = 0.12f;
+        [SerializeField] [Range(0f, 1f)] private float directSeparationInfluence = 0.3f;
 
         private enum DestinationMode
         {
@@ -98,6 +105,7 @@ namespace TankGame.Tank.AI
         private float lastLineOfSightTime = float.NegativeInfinity;
         private float nextTargetPathDistanceUpdateTime;
         private float cachedTargetPathDistance = float.PositiveInfinity;
+        private float nextFarPatrolCheckTime;
         private float currentVerticalInput;
         private float currentHorizontalInput;
 
@@ -121,7 +129,9 @@ namespace TankGame.Tank.AI
         private int consecutiveAlternativeRouteFailures;
         private string lastIdleReason;
         private DestinationMode lastDestinationMode = DestinationMode.None;
+        private DestinationMode currentDestinationMode = DestinationMode.None;
         private float nextDestinationModeLogTime;
+        private float farIdleStartTime = float.NegativeInfinity;
 
         private bool HasActiveRoute => activeRouteIndex >= 0 && activeRouteIndex < activeCheckpointRoute.Count;
         private bool IsPatrolling => patrolRouteIndex >= 0 && patrolRouteIndex < patrolRoute.Count;
@@ -149,6 +159,9 @@ namespace TankGame.Tank.AI
 
             ConfigureAgent();
             ClearCheckpointState();
+
+            if (targetDetectionRange <= 0.1f)
+                targetDetectionRange = chaseRange;
         }
 
         private void OnEnable()
@@ -182,27 +195,43 @@ namespace TankGame.Tank.AI
             if (hasLineOfSight)
                 lastLineOfSightTime = Time.time;
 
+            bool targetInDetectionRange = distance <= Mathf.Max(0.1f, targetDetectionRange);
+            bool targetDetected = hasLineOfSight && targetInDetectionRange;
             bool lineOfSightAllowedForMovement = hasLineOfSight ||
                 (Time.time - lastLineOfSightTime) <= Mathf.Max(0f, lineOfSightGraceTime);
-            if (stopMovementWhenTargetNotVisible && !lineOfSightAllowedForMovement)
+            bool farFromTarget = distance >= Mathf.Max(fireRange, farDistanceForPatrolFallback);
+            if (stopMovementWhenTargetNotVisible && !lineOfSightAllowedForMovement && !IsPatrolling && !farFromTarget)
             {
                 SetNoLineOfSightHoldState();
                 return;
             }
             lastIdleReason = null;
 
-            EvaluateLoopAndMaybeEnterPatrol(hasLineOfSight);
+            EvaluateLoopAndMaybeEnterPatrol(targetDetected);
+            EvaluateFarDistancePatrolFallback(distance, targetDetected);
 
-            turret.SetAimPoint(aimPoint);
             TankWeapon activeWeapon = GetActiveWeapon();
-            activeWeapon?.SetAimPoint(aimPoint);
+            if (targetDetected)
+            {
+                turret.SetAimPoint(aimPoint);
+                activeWeapon?.SetAimPoint(aimPoint);
 
-            if (!turret.IsAiming)
-                turret.StartAiming();
+                if (!turret.IsAiming)
+                    turret.StartAiming();
 
-            UpdateCombatWeapon(distance);
+                UpdateCombatWeapon(distance);
+            }
+            else
+            {
+                turret?.ClearAimPoint();
+                activeWeapon?.ClearAimPoint();
+                if (turret != null && turret.IsAiming)
+                    turret.StopAiming();
+                turret?.ReturnToIdleRotation();
+            }
+
             UpdateMovementInputs(distance);
-            TryFireAtTarget(distance, aimPoint, hasLineOfSight);
+            TryFireAtTarget(distance, aimPoint, targetDetected && hasLineOfSight);
             TryReloadIfNeeded();
         }
 
@@ -319,7 +348,11 @@ namespace TankGame.Tank.AI
             Vector3 separation = GetSeparationFromOtherBots();
             if (separation.sqrMagnitude > 0.01f)
             {
-                desiredWorld = (desiredWorld + separation).normalized;
+                float influence = currentDestinationMode == DestinationMode.Direct
+                    ? Mathf.Clamp01(directSeparationInfluence)
+                    : Mathf.Clamp01(routeSeparationInfluence);
+                Vector3 separatedDirection = (desiredWorld + separation).normalized;
+                desiredWorld = Vector3.Slerp(desiredWorld, separatedDirection, influence);
                 desiredWorld.y = 0f;
                 if (desiredWorld.sqrMagnitude > 0.01f)
                     desiredWorld.Normalize();
@@ -391,6 +424,7 @@ namespace TankGame.Tank.AI
             }
 
             agent.stoppingDistance = desiredStoppingDistance;
+            currentDestinationMode = mode;
 
             agent.SetDestination(destination);
             LogDestinationMode(mode, destination, desiredStoppingDistance);
@@ -468,6 +502,103 @@ namespace TankGame.Tank.AI
             loopCheckStartTime = Time.time;
             observedRouteStartDistance = distanceToCurrentRoutePoint;
             observedRouteBestDistance = distanceToCurrentRoutePoint;
+        }
+
+        private void EvaluateFarDistancePatrolFallback(float distanceToTarget, bool targetDetected)
+        {
+            if (!enableAntiLoopPatrol || !enableFarDistancePatrolFallback || IsPatrolling)
+                return;
+
+            if (distanceToTarget < Mathf.Max(fireRange, farDistanceForPatrolFallback))
+            {
+                farIdleStartTime = float.NegativeInfinity;
+                return;
+            }
+
+            if (targetDetected)
+            {
+                farIdleStartTime = float.NegativeInfinity;
+                return;
+            }
+
+            if (Time.time < nextFarPatrolCheckTime)
+                return;
+
+            nextFarPatrolCheckTime = Time.time + Mathf.Max(0.2f, farPatrolCheckInterval);
+
+            bool hasNoRoute = !HasActiveRoute;
+            bool hasNoUsefulPath = agent == null || !agent.hasPath || (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.25f);
+            if (!hasNoRoute || !hasNoUsefulPath)
+            {
+                farIdleStartTime = float.NegativeInfinity;
+                return;
+            }
+
+            if (TrySetNearestCheckpointAsRoute())
+            {
+                farIdleStartTime = float.NegativeInfinity;
+                LogAi("ROUTE", "Far fallback: moving to nearest checkpoint before patrol.");
+                return;
+            }
+
+            if (farIdleStartTime <= 0f)
+            {
+                farIdleStartTime = Time.time;
+                return;
+            }
+
+            if ((Time.time - farIdleStartTime) < Mathf.Max(0.1f, idleBeforePatrolDelay))
+                return;
+
+            if (TryStartPatrolFromNearestNodes())
+            {
+                farIdleStartTime = float.NegativeInfinity;
+                LogAi("PATROL", "Far fallback: started patrol due to stalled long-range chase.");
+            }
+        }
+
+        private bool TrySetNearestCheckpointAsRoute()
+        {
+            NavMeshCheckpointNode[] nodes = GetCheckpointNodes();
+            if (nodes == null || nodes.Length == 0)
+                return false;
+
+            if (!TrySampleOnNavMesh(transform.position, out Vector3 selfOnMesh))
+                return false;
+
+            NavMeshCheckpointNode nearestNode = null;
+            float nearestDistance = float.PositiveInfinity;
+
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                NavMeshCheckpointNode node = nodes[i];
+                if (node == null)
+                    continue;
+
+                if (!TrySampleOnNavMesh(node.transform.position, out Vector3 nodeOnMesh))
+                    continue;
+                if (IsPositionReached(nodeOnMesh))
+                    continue;
+
+                float distance = GetPathDistance(selfOnMesh, nodeOnMesh, pathToCheckpointBuffer);
+                if (!IsFinitePathDistance(distance))
+                    continue;
+
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestNode = node;
+                }
+            }
+
+            if (nearestNode == null)
+                return false;
+
+            activeCheckpointRoute.Clear();
+            activeCheckpointRoute.Add(nearestNode);
+            activeRouteIndex = 0;
+            nextCheckpointReevaluateTime = 0f;
+            return true;
         }
 
         private bool TryStartPatrolFromNearestNodes()
@@ -1219,7 +1350,9 @@ namespace TankGame.Tank.AI
                 agent.ResetPath();
 
             lastDestinationMode = DestinationMode.None;
+            currentDestinationMode = DestinationMode.None;
             nextDestinationModeLogTime = 0f;
+            farIdleStartTime = float.NegativeInfinity;
 
             if (lastIdleReason != "NoLineOfSight")
             {
@@ -1233,6 +1366,7 @@ namespace TankGame.Tank.AI
 
             if (turret != null && turret.IsAiming)
                 turret.StopAiming();
+            turret?.ReturnToIdleRotation();
         }
 
         private void LogDestinationMode(DestinationMode mode, Vector3 destination, float stoppingDistance)
@@ -1288,7 +1422,9 @@ namespace TankGame.Tank.AI
             ClearCheckpointState();
             ClearPatrolState();
             lastDestinationMode = DestinationMode.None;
+            currentDestinationMode = DestinationMode.None;
             nextDestinationModeLogTime = 0f;
+            farIdleStartTime = float.NegativeInfinity;
 
             if (!string.IsNullOrEmpty(reason) && reason != lastIdleReason)
             {
@@ -1302,6 +1438,7 @@ namespace TankGame.Tank.AI
 
             if (turret != null && turret.IsAiming)
                 turret.StopAiming();
+            turret?.ReturnToIdleRotation();
         }
     }
 }

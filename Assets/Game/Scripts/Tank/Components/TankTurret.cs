@@ -137,6 +137,8 @@ namespace TankGame.Tank.Components
         private LineRenderer   fireLineRenderer;
         private float          targetRotationAudioVolume;
         private float          pendingCameraYawInput;
+        private Quaternion     initialTurretLocalRotation;
+        private bool           hasInitialTurretRotation;
 
         // ─── Public API ───────────────────────────────────────────────────────
         public Transform Turret          => turret;
@@ -207,6 +209,7 @@ namespace TankGame.Tank.Components
 
             CreateFireLineRenderer();
             InitializeRotationAudio();
+            CacheInitialTurretRotation();
         }
 
         // ─── Initialization ───────────────────────────────────────────────────
@@ -231,6 +234,15 @@ namespace TankGame.Tank.Components
                 if (found != null) return found;
             }
             return null;
+        }
+
+        private void CacheInitialTurretRotation()
+        {
+            if (turret == null)
+                return;
+
+            initialTurretLocalRotation = turret.localRotation;
+            hasInitialTurretRotation = true;
         }
 
         private void CreateFireLineRenderer()
@@ -528,6 +540,26 @@ namespace TankGame.Tank.Components
         public void ClearAimPoint()
         {
             hasExternalAimPoint = false;
+        }
+
+        public void ReturnToIdleRotation()
+        {
+            if (turret == null)
+                return;
+
+            if (!hasInitialTurretRotation)
+                CacheInitialTurretRotation();
+
+            if (!hasInitialTurretRotation)
+                return;
+
+            float smoothMul = Mathf.Lerp(0.1f, 1f, turretRotationSmoothness);
+            float step = turretRotationSpeed * smoothMul * Time.deltaTime;
+            Quaternion previousRotation = turret.localRotation;
+            turret.localRotation = Quaternion.RotateTowards(previousRotation, initialTurretLocalRotation, step);
+
+            float angleDelta = Quaternion.Angle(previousRotation, turret.localRotation);
+            currentTurretRotationSpeed = angleDelta / Mathf.Max(Time.deltaTime, 0.0001f);
         }
 
         public Vector3 GetAimPoint()
