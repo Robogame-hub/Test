@@ -20,75 +20,130 @@ namespace TankGame.Tank.AI
             ForceWhenAvailable = 1
         }
 
-        [Header("References")]
+        [Header("Ссылки")]
+        [Tooltip("Цель для бота. Если не задана и включен autoFindLocalPlayerTarget, бот будет искать локального игрока.")]
         [SerializeField] private Transform target;
+        [Tooltip("Контроллер танка бота.")]
         [SerializeField] private TankController tankController;
+        [Tooltip("Компонент движения танка.")]
         [SerializeField] private TankMovement movement;
+        [Tooltip("Компонент башни танка.")]
         [SerializeField] private TankTurret turret;
+        [Tooltip("Оружие по умолчанию, если не используется переключение через TankController.")]
         [SerializeField] private TankWeapon weapon;
+        [Tooltip("Компонент здоровья.")]
         [SerializeField] private TankHealth health;
+        [Tooltip("Анимация гусениц.")]
         [SerializeField] private TrackAnimationController trackAnimation;
+        [Tooltip("NavMeshAgent для навигации по маршруту.")]
         [SerializeField] private NavMeshAgent agent;
 
-        [Header("Targeting")]
+        [Header("Поиск Цели")]
+        [Tooltip("Автоматически искать локального игрока как цель.")]
         [SerializeField] private bool autoFindLocalPlayerTarget = true;
+        [Tooltip("Интервал между попытками найти цель (сек).")]
         [SerializeField] private float targetSearchInterval = 1f;
+        [Tooltip("Смещение точки прицеливания по высоте относительно цели.")]
         [SerializeField] private float targetAimHeightOffset = 0.6f;
+        [Tooltip("Радиус обнаружения цели. Башня будет наводиться только в этом радиусе и при видимости.")]
         [SerializeField] private float targetDetectionRange = 60f;
 
-        [Header("Movement")]
+        [Header("Движение")]
+        [Tooltip("Максимальная дистанция преследования цели.")]
         [SerializeField] private float chaseRange = 60f;
+        [Tooltip("Дистанция атаки (используется для остановки и поведения в бою).")]
         [SerializeField] private float attackRange = 22f;
+        [Tooltip("Минимальная комфортная дистанция до других ботов для разъезда.")]
         [SerializeField] private float minDistanceToOtherBots = 6f;
+        [Tooltip("Как часто пересчитывать цель NavMeshAgent (сек).")]
         [SerializeField] private float repathInterval = 0.2f;
+        [Tooltip("Угол, при котором горизонтальный ввод достигает максимума.")]
         [SerializeField] private float turnAngleForFullInput = 60f;
+        [Tooltip("Если угол к направлению движения больше этого значения, бот не дает газ вперед.")]
         [SerializeField] private float moveAngleLimit = 100f;
 
-        [Header("NavMesh Checkpoints")]
+        [Header("Маршрут Через Checkpoint")]
+        [Tooltip("Использовать маршрутизацию через контрольные точки NavMeshCheckpointNode.")]
         [SerializeField] private bool useNavMeshCheckpoints = true;
+        [Tooltip("Режим маршрутизации: AssistIfBetter - только если выгоднее, ForceWhenAvailable - всегда при доступности.")]
         [SerializeField] private CheckpointRoutingMode checkpointRoutingMode = CheckpointRoutingMode.ForceWhenAvailable;
+        [Tooltip("Список контрольных точек вручную. Если пусто и autoFindCheckpointNodesIfEmpty=true, точки ищутся автоматически.")]
         [SerializeField] private Transform[] checkpointNodeTransforms;
+        [Tooltip("Автоматически искать NavMeshCheckpointNode на сцене, если список пуст.")]
         [SerializeField] private bool autoFindCheckpointNodesIfEmpty = true;
+        [Tooltip("Базовая дистанция, на которой точка считается достигнутой.")]
         [SerializeField] private float checkpointReachDistance = 2.75f;
+        [Tooltip("Радиус поиска ближайшей позиции на NavMesh для точек маршрута.")]
         [SerializeField] private float checkpointSampleRadius = 4f;
+        [Tooltip("Интервал переоценки маршрута по checkpoint (сек).")]
         [SerializeField] private float checkpointReevaluateInterval = 0.4f;
+        [Tooltip("Минимальная выгода checkpoint-маршрута над прямым путем (для AssistIfBetter).")]
         [SerializeField] private float checkpointMinBenefitDistance = 1.5f;
+        [Tooltip("Не переключать checkpoint, пока текущий не достигнут.")]
         [SerializeField] private bool keepCurrentCheckpointUntilReached = true;
+        [Tooltip("Считать маршрут один раз и держать его до завершения.")]
         [SerializeField] private bool calculateCheckpointRouteOnceUntilCompleted = true;
+        [Tooltip("Остановка перед checkpoint на этой дистанции.")]
         [SerializeField] private float checkpointStoppingDistance = 0.45f;
+        [Tooltip("Множитель точности достижения checkpoint (к checkpointReachDistance).")]
         [SerializeField] private float checkpointReachDistanceScale = 0.45f;
 
-        [Header("Combat")]
+        [Header("Бой")]
+        [Tooltip("Дальность стрельбы.")]
         [SerializeField] private float fireRange = 20f;
+        [Tooltip("Требовать прямую видимость для выстрела.")]
         [SerializeField] private bool requireLineOfSight = true;
+        [Tooltip("Слои, учитываемые при проверке видимости (raycast).")]
         [SerializeField] private LayerMask lineOfSightMask = ~0;
+        [Tooltip("Требовать выравнивание башни перед выстрелом.")]
         [SerializeField] private bool requireTurretAlignmentForFire = false;
+        [Tooltip("Останавливать движение, если цель не видна (в рамках lineOfSightGraceTime).")]
         [SerializeField] private bool stopMovementWhenTargetNotVisible = true;
+        [Tooltip("Небольшое время после потери LOS, когда движение еще разрешено (сек).")]
         [SerializeField] private float lineOfSightGraceTime = 0.35f;
 
-        [Header("Anti-Loop Patrol")]
+        [Header("Патруль И Анти-Зацикливание")]
+        [Tooltip("Включить анти-луп логику и fallback в патруль.")]
         [SerializeField] private bool enableAntiLoopPatrol = true;
+        [Tooltip("Количество точек в патрульном маршруте.")]
         [SerializeField] private int patrolPointCount = 5;
+        [Tooltip("Радиус наблюдения за прогрессом, чтобы распознать зацикливание.")]
         [SerializeField] private float loopDetectionRadius = 6f;
+        [Tooltip("Время наблюдения за прогрессом перед выводом о зацикливании (сек).")]
         [SerializeField] private float loopDetectionDuration = 3f;
+        [Tooltip("Минимальный прогресс, который считается достаточным (метры).")]
         [SerializeField] private float loopMinProgressDistance = 1.25f;
+        [Tooltip("Сколько раз пытаться перестроить альтернативный маршрут перед переходом в патруль.")]
         [SerializeField] private int maxAlternativeRouteAttemptsBeforePatrol = 3;
+        [Tooltip("На сколько секунд временно блокировать проблемный checkpoint.")]
         [SerializeField] private float blockedNodeDuration = 8f;
+        [Tooltip("Дистанция остановки при движении по патрулю.")]
         [SerializeField] private float patrolStoppingDistance = 0.4f;
+        [Tooltip("Включить дальний fallback в патруль, когда цель далеко и бот бездействует.")]
         [SerializeField] private bool enableFarDistancePatrolFallback = true;
+        [Tooltip("Дистанция, после которой активируется дальний fallback.")]
         [SerializeField] private float farDistanceForPatrolFallback = 55f;
+        [Tooltip("Интервал проверки условий дальнего fallback (сек).")]
         [SerializeField] private float farPatrolCheckInterval = 1.5f;
+        [Tooltip("Задержка бездействия перед стартом патруля (сек).")]
         [SerializeField] private float idleBeforePatrolDelay = 1f;
 
-        [Header("Weapon Switching")]
+        [Header("Смена Оружия")]
+        [Tooltip("Автоматически переключать оружие по дистанции до цели.")]
         [SerializeField] private bool enableWeaponSwitching = true;
+        [Tooltip("До этой дистанции предпочитать пулемет, дальше - пушку.")]
         [SerializeField] private float machineGunPreferredRange = 12f;
+        [Tooltip("Минимальная пауза между переключениями оружия (сек).")]
         [SerializeField] private float weaponSwitchCooldown = 0.5f;
 
-        [Header("Debug")]
+        [Header("Отладка")]
+        [Tooltip("Включить отладочные сообщения AI в консоль.")]
         [SerializeField] private bool enableAiDebugLogs = true;
+        [Tooltip("Минимальный интервал логов о смене режима назначения (сек).")]
         [SerializeField] private float destinationModeLogCooldown = 0.75f;
+        [Tooltip("Насколько сильно бот отклоняется от маршрута из-за разъезда с союзными ботами (для checkpoint/patrol).")]
         [SerializeField] [Range(0f, 1f)] private float routeSeparationInfluence = 0.12f;
+        [Tooltip("Насколько сильно бот отклоняется от направления в режиме прямого движения к цели.")]
         [SerializeField] [Range(0f, 1f)] private float directSeparationInfluence = 0.3f;
 
         private enum DestinationMode
@@ -121,6 +176,8 @@ namespace TankGame.Tank.AI
         private readonly List<NavMeshCheckpointNode> patrolRoute = new List<NavMeshCheckpointNode>(8);
         private readonly Dictionary<NavMeshCheckpointNode, float> blockedNodesUntilTime = new Dictionary<NavMeshCheckpointNode, float>(16);
         private int patrolRouteIndex = -1;
+        private int patrolRouteDirection = 1;
+        private bool waitingPatrolAfterNearestCheckpoint;
         private bool loopCheckActive;
         private float loopCheckStartTime;
         private int observedRouteIndex = -1;
@@ -132,6 +189,7 @@ namespace TankGame.Tank.AI
         private DestinationMode currentDestinationMode = DestinationMode.None;
         private float nextDestinationModeLogTime;
         private float farIdleStartTime = float.NegativeInfinity;
+        private float noSightIdleStartTime = float.NegativeInfinity;
 
         private bool HasActiveRoute => activeRouteIndex >= 0 && activeRouteIndex < activeCheckpointRoute.Count;
         private bool IsPatrolling => patrolRouteIndex >= 0 && patrolRouteIndex < patrolRoute.Count;
@@ -205,6 +263,7 @@ namespace TankGame.Tank.AI
                 SetNoLineOfSightHoldState();
                 return;
             }
+            noSightIdleStartTime = float.NegativeInfinity;
             lastIdleReason = null;
 
             EvaluateLoopAndMaybeEnterPatrol(targetDetected);
@@ -507,17 +566,22 @@ namespace TankGame.Tank.AI
         private void EvaluateFarDistancePatrolFallback(float distanceToTarget, bool targetDetected)
         {
             if (!enableAntiLoopPatrol || !enableFarDistancePatrolFallback || IsPatrolling)
+            {
+                waitingPatrolAfterNearestCheckpoint = false;
                 return;
+            }
 
             if (distanceToTarget < Mathf.Max(fireRange, farDistanceForPatrolFallback))
             {
                 farIdleStartTime = float.NegativeInfinity;
+                waitingPatrolAfterNearestCheckpoint = false;
                 return;
             }
 
             if (targetDetected)
             {
                 farIdleStartTime = float.NegativeInfinity;
+                waitingPatrolAfterNearestCheckpoint = false;
                 return;
             }
 
@@ -528,6 +592,33 @@ namespace TankGame.Tank.AI
 
             bool hasNoRoute = !HasActiveRoute;
             bool hasNoUsefulPath = agent == null || !agent.hasPath || (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.25f);
+
+            if (waitingPatrolAfterNearestCheckpoint)
+            {
+                if (!hasNoRoute || !hasNoUsefulPath)
+                {
+                    farIdleStartTime = float.NegativeInfinity;
+                    return;
+                }
+
+                if (farIdleStartTime <= 0f)
+                {
+                    farIdleStartTime = Time.time;
+                    return;
+                }
+
+                if ((Time.time - farIdleStartTime) < Mathf.Max(0.1f, idleBeforePatrolDelay))
+                    return;
+
+                if (TryStartPatrolFromNearestNodes())
+                {
+                    waitingPatrolAfterNearestCheckpoint = false;
+                    farIdleStartTime = float.NegativeInfinity;
+                    LogAi("PATROL", "Far fallback: started patrol after reaching nearest checkpoint.");
+                }
+                return;
+            }
+
             if (!hasNoRoute || !hasNoUsefulPath)
             {
                 farIdleStartTime = float.NegativeInfinity;
@@ -536,6 +627,7 @@ namespace TankGame.Tank.AI
 
             if (TrySetNearestCheckpointAsRoute())
             {
+                waitingPatrolAfterNearestCheckpoint = true;
                 farIdleStartTime = float.NegativeInfinity;
                 LogAi("ROUTE", "Far fallback: moving to nearest checkpoint before patrol.");
                 return;
@@ -552,6 +644,7 @@ namespace TankGame.Tank.AI
 
             if (TryStartPatrolFromNearestNodes())
             {
+                waitingPatrolAfterNearestCheckpoint = false;
                 farIdleStartTime = float.NegativeInfinity;
                 LogAi("PATROL", "Far fallback: started patrol due to stalled long-range chase.");
             }
@@ -656,6 +749,8 @@ namespace TankGame.Tank.AI
 
             ClearCheckpointState();
             patrolRouteIndex = 0;
+            patrolRouteDirection = 1;
+            waitingPatrolAfterNearestCheckpoint = false;
             consecutiveAlternativeRouteFailures = 0;
             ResetLoopCheck();
             LogAi("PATROL", $"Patrol started with {patrolRoute.Count} nodes: {FormatNodeList(patrolRoute)}");
@@ -724,9 +819,25 @@ namespace TankGame.Tank.AI
             if (!IsPatrolling)
                 return;
 
-            patrolRouteIndex++;
-            if (patrolRouteIndex >= patrolRoute.Count)
+            if (patrolRoute.Count <= 1)
+            {
                 patrolRouteIndex = 0;
+                return;
+            }
+
+            int nextIndex = patrolRouteIndex + patrolRouteDirection;
+            if (nextIndex >= patrolRoute.Count)
+            {
+                patrolRouteDirection = -1;
+                nextIndex = patrolRoute.Count - 2;
+            }
+            else if (nextIndex < 0)
+            {
+                patrolRouteDirection = 1;
+                nextIndex = 1;
+            }
+
+            patrolRouteIndex = Mathf.Clamp(nextIndex, 0, patrolRoute.Count - 1);
         }
 
         private bool TryGetCheckpointDestination(Vector3 finalTargetPosition, out Vector3 checkpointDestination)
@@ -1126,6 +1237,8 @@ namespace TankGame.Tank.AI
         {
             patrolRoute.Clear();
             patrolRouteIndex = -1;
+            patrolRouteDirection = 1;
+            waitingPatrolAfterNearestCheckpoint = false;
             consecutiveAlternativeRouteFailures = 0;
             ResetLoopCheck();
         }
@@ -1343,6 +1456,22 @@ namespace TankGame.Tank.AI
 
         private void SetNoLineOfSightHoldState()
         {
+            if (!IsPatrolling)
+            {
+                if (noSightIdleStartTime <= 0f)
+                {
+                    noSightIdleStartTime = Time.time;
+                }
+                else if ((Time.time - noSightIdleStartTime) >= Mathf.Max(0.1f, idleBeforePatrolDelay) &&
+                         TryStartPatrolFromNearestNodes())
+                {
+                    noSightIdleStartTime = float.NegativeInfinity;
+                    farIdleStartTime = float.NegativeInfinity;
+                    LogAi("PATROL", "Started patrol from NoLineOfSight idle.");
+                    return;
+                }
+            }
+
             currentVerticalInput = 0f;
             currentHorizontalInput = 0f;
 
@@ -1353,6 +1482,7 @@ namespace TankGame.Tank.AI
             currentDestinationMode = DestinationMode.None;
             nextDestinationModeLogTime = 0f;
             farIdleStartTime = float.NegativeInfinity;
+            noSightIdleStartTime = float.NegativeInfinity;
 
             if (lastIdleReason != "NoLineOfSight")
             {
@@ -1425,6 +1555,7 @@ namespace TankGame.Tank.AI
             currentDestinationMode = DestinationMode.None;
             nextDestinationModeLogTime = 0f;
             farIdleStartTime = float.NegativeInfinity;
+            noSightIdleStartTime = float.NegativeInfinity;
 
             if (!string.IsNullOrEmpty(reason) && reason != lastIdleReason)
             {
