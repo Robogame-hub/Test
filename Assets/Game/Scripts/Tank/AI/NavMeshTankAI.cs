@@ -127,6 +127,10 @@ namespace TankGame.Tank.AI
         [SerializeField] private float farPatrolCheckInterval = 1.5f;
         [Tooltip("Задержка бездействия перед стартом патруля (сек).")]
         [SerializeField] private float idleBeforePatrolDelay = 1f;
+        [Tooltip("Назначать маршрут патруля сразу при старте бота.")]
+        [SerializeField] private bool assignPatrolRouteOnStart = true;
+        [Tooltip("Небольшая задержка перед стартовой выдачей патруля (сек), чтобы NavMesh успел инициализироваться.")]
+        [SerializeField] private float startPatrolAssignmentDelay = 0.2f;
 
         [Header("Смена Оружия")]
         [Tooltip("Автоматически переключать оружие по дистанции до цели.")]
@@ -190,6 +194,8 @@ namespace TankGame.Tank.AI
         private float nextDestinationModeLogTime;
         private float farIdleStartTime = float.NegativeInfinity;
         private float noSightIdleStartTime = float.NegativeInfinity;
+        private bool pendingStartPatrolAssignment;
+        private float startPatrolAssignmentTime;
 
         private bool HasActiveRoute => activeRouteIndex >= 0 && activeRouteIndex < activeCheckpointRoute.Count;
         private bool IsPatrolling => patrolRouteIndex >= 0 && patrolRouteIndex < patrolRoute.Count;
@@ -229,6 +235,9 @@ namespace TankGame.Tank.AI
                 tankController.SetIsLocalPlayer(false);
                 tankController.SetAuthorityMode(TankController.AuthorityMode.NetworkProxy);
             }
+
+            pendingStartPatrolAssignment = assignPatrolRouteOnStart;
+            startPatrolAssignmentTime = Time.time + Mathf.Max(0f, startPatrolAssignmentDelay);
         }
 
         private void Update()
@@ -239,26 +248,23 @@ namespace TankGame.Tank.AI
                 return;
             }
 
+            TryAssignStartPatrolRoute();
+
             TryAutoFindTarget();
-            if (target == null)
-            {
-                SetIdleState("NoTarget");
-                return;
-            }
+            bool hasTarget = target != null;
+            float distance = hasTarget ? GetPlanarDistance(transform.position, target.position) : float.PositiveInfinity;
 
-            float distance = GetPlanarDistance(transform.position, target.position);
-
-            Vector3 aimPoint = GetTargetAimPoint(target);
-            bool hasLineOfSight = HasLineOfSight(aimPoint);
+            Vector3 aimPoint = hasTarget ? GetTargetAimPoint(target) : Vector3.zero;
+            bool hasLineOfSight = hasTarget && HasLineOfSight(aimPoint);
             if (hasLineOfSight)
                 lastLineOfSightTime = Time.time;
 
-            bool targetInDetectionRange = distance <= Mathf.Max(0.1f, targetDetectionRange);
+            bool targetInDetectionRange = hasTarget && distance <= Mathf.Max(0.1f, targetDetectionRange);
             bool targetDetected = hasLineOfSight && targetInDetectionRange;
             bool lineOfSightAllowedForMovement = hasLineOfSight ||
                 (Time.time - lastLineOfSightTime) <= Mathf.Max(0f, lineOfSightGraceTime);
             bool farFromTarget = distance >= Mathf.Max(fireRange, farDistanceForPatrolFallback);
-            if (stopMovementWhenTargetNotVisible && !lineOfSightAllowedForMovement && !IsPatrolling && !farFromTarget)
+            if (hasTarget && stopMovementWhenTargetNotVisible && !lineOfSightAllowedForMovement && !IsPatrolling && !farFromTarget)
             {
                 SetNoLineOfSightHoldState();
                 return;
@@ -266,8 +272,11 @@ namespace TankGame.Tank.AI
             noSightIdleStartTime = float.NegativeInfinity;
             lastIdleReason = null;
 
-            EvaluateLoopAndMaybeEnterPatrol(targetDetected);
-            EvaluateFarDistancePatrolFallback(distance, targetDetected);
+            if (hasTarget)
+            {
+                EvaluateLoopAndMaybeEnterPatrol(targetDetected);
+                EvaluateFarDistancePatrolFallback(distance, targetDetected);
+            }
 
             TankWeapon activeWeapon = GetActiveWeapon();
             if (targetDetected)
@@ -290,7 +299,8 @@ namespace TankGame.Tank.AI
             }
 
             UpdateMovementInputs(distance);
-            TryFireAtTarget(distance, aimPoint, targetDetected && hasLineOfSight);
+            if (hasTarget)
+                TryFireAtTarget(distance, aimPoint, targetDetected && hasLineOfSight);
             TryReloadIfNeeded();
         }
 
@@ -345,9 +355,36 @@ namespace TankGame.Tank.AI
             target = localPlayer.transform;
         }
 
+        private void TryAssignStartPatrolRoute()
+        {
+            if (!pendingStartPatrolAssignment)
+                return;
+
+            if (Time.time < startPatrolAssignmentTime)
+                return;
+
+            if (agent == null || !agent.isOnNavMesh)
+                return;
+
+            if (IsPatrolling)
+            {
+                pendingStartPatrolAssignment = false;
+                return;
+            }
+
+            if (TryStartPatrolFromNearestNodes())
+            {
+                pendingStartPatrolAssignment = false;
+                LogAi("PATROL", "Startup: assigned patrol route.");
+                return;
+            }
+
+            startPatrolAssignmentTime = Time.time + 1f;
+        }
+
         private void UpdateMovementInputs(float distanceToTarget)
         {
-            if (agent == null || !agent.isOnNavMesh || target == null)
+            if (agent == null || !agent.isOnNavMesh || (!IsPatrolling && target == null))
             {
                 currentVerticalInput = 0f;
                 currentHorizontalInput = 0f;
@@ -356,7 +393,7 @@ namespace TankGame.Tank.AI
             }
 
             agent.nextPosition = transform.position;
-            float effectiveDistanceToTarget = GetEffectiveDistanceToTarget(distanceToTarget);
+            float effectiveDistanceToTarget = IsPatrolling ? float.PositiveInfinity : GetEffectiveDistanceToTarget(distanceToTarget);
             bool shouldMove = IsPatrolling || effectiveDistanceToTarget > fireRange;
 
             if (shouldMove && Time.time >= nextRepathTime)
@@ -436,10 +473,10 @@ namespace TankGame.Tank.AI
 
         private void UpdateAgentDestination()
         {
-            if (agent == null || !agent.isOnNavMesh || target == null)
+            if (agent == null || !agent.isOnNavMesh || (!IsPatrolling && target == null))
                 return;
 
-            Vector3 destination = target.position;
+            Vector3 destination = target != null ? target.position : transform.position;
             bool usesCheckpointDestination = false;
             bool usesPatrolDestination = false;
 
@@ -454,7 +491,7 @@ namespace TankGame.Tank.AI
                 ClearPatrolState();
             }
 
-            if (!usesPatrolDestination && TryGetCheckpointDestination(target.position, out Vector3 checkpointDestination))
+            if (!usesPatrolDestination && target != null && TryGetCheckpointDestination(target.position, out Vector3 checkpointDestination))
             {
                 destination = checkpointDestination;
                 usesCheckpointDestination = true;
