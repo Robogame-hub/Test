@@ -234,7 +234,6 @@ GameObject:
   - component: {fileID: 3693621769290961330}
   - component: {fileID: 4647533095163649834}
   - component: {fileID: 6012447536048139184}
-  - component: {fileID: 8809686841862077292}
   m_Layer: 15
   m_Name: TANK_1 (1)
   m_TagString: Untagged
@@ -507,6 +506,8 @@ MonoBehaviour:
   inputHandler: {fileID: 4749278163873901482}
   announcer: {fileID: 6012447536048139184}
   isLocalPlayer: 0
+  authorityMode: 0
+  networkAdapterBehaviour: {fileID: 0}
   startWeapon: 2
   autoReloadMachineGun: 0
   weaponSwitchAudioSource: {fileID: 4647533095163649834}
@@ -531,6 +532,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.TankInputHandler
   hideCursorInGame: 1
   toggleCursorKey: 27
+  inputCamera: {fileID: 0}
+  aimPlaneReference: {fileID: 0}
 --- !u!114 &4806362758321669506
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -850,25 +853,6 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 82b993aeaea20424a943cfe185830bd9, type: 3}
   outOfAmmoChance: 1
   outOfAmmoCooldown: 12
---- !u!114 &8809686841862077292
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8277683367704240566}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1cbf4a075aa188a449a4f670d478657e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TankGame.Tank.Components.TrackDustEffect
-  dustParticles:
-  - {fileID: 7781513807722738037}
-  - {fileID: 4080236276712456489}
-  minSpeedForDust: 0.05
-  emissionLerpSpeed: 8
-  minEmissionRate: 0
-  maxEmissionRate: 30
 --- !u!1 &8903967831925475315
 GameObject:
   m_ObjectHideFlags: 0
@@ -2138,12 +2122,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 14d81e2c407975245973a11cdfbeb902, type: 3}
---- !u!198 &4080236276712456489 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 198000010021673064, guid: 14d81e2c407975245973a11cdfbeb902,
-    type: 3}
-  m_PrefabInstance: {fileID: 4188495758284446017}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4192485454329561965 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4000012573350444, guid: 14d81e2c407975245973a11cdfbeb902,
@@ -2817,12 +2795,6 @@ PrefabInstance:
 --- !u!4 &7587483024024531761 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4000012573350444, guid: 14d81e2c407975245973a11cdfbeb902,
-    type: 3}
-  m_PrefabInstance: {fileID: 7584644933265516829}
-  m_PrefabAsset: {fileID: 0}
---- !u!198 &7781513807722738037 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 198000010021673064, guid: 14d81e2c407975245973a11cdfbeb902,
     type: 3}
   m_PrefabInstance: {fileID: 7584644933265516829}
   m_PrefabAsset: {fileID: 0}

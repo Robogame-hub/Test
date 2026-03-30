@@ -210,7 +210,7 @@ MonoBehaviour:
     _useAlpha: 1
     _useHDR: 0
   overlayColor:
-    _value: {r: 1, g: 1, b: 1, a: 0}
+    _value: {r: 0, g: 0, b: 0, a: 0}
     _useAlpha: 1
     _useHDR: 0
   depthNearFade:

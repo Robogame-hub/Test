@@ -42,6 +42,7 @@ namespace TankGame.Weapons
         private Rigidbody rb;
         private Collider bulletCollider;
         private TankWeapon ownerWeapon;
+        private Transform ownerRoot;
         private GameObject impactEffect;
         private float impactVfxScale = 1f;
         private float lifetime;
@@ -116,6 +117,7 @@ namespace TankGame.Weapons
             AudioClip ricochetSnd = null, float ricochetAngMin = 15f, float ricochetAngMax = 80f)
         {
             ownerWeapon = weapon;
+            ownerRoot = weapon != null ? weapon.transform.root : null;
             impactEffect = impact;
             lifetime = life;
             runtimeDamage = Mathf.Max(0f, weaponDamage);
@@ -162,12 +164,8 @@ namespace TankGame.Weapons
 
             // Игнорируем столкновение с танком владельцем
             // Проверяем наличие компонента TankWeapon (значит это танк)
-            TankWeapon ownerCheck = collision.gameObject.GetComponentInParent<TankWeapon>();
-            if (ownerCheck != null && ownerCheck == ownerWeapon)
-            {
-                Debug.Log($"[Bullet] Ignoring collision with owner tank: {collision.gameObject.name}");
+            if (IsOwnerCollider(collision.collider))
                 return;
-            }
 
             if (hasImpacted)
                 return;
@@ -197,9 +195,7 @@ namespace TankGame.Weapons
             if (hasImpacted)
                 return;
 
-            // Ignore owner tank colliders.
-            TankWeapon ownerCheck = other.GetComponentInParent<TankWeapon>();
-            if (ownerCheck != null && ownerCheck == ownerWeapon)
+            if (IsOwnerCollider(other))
                 return;
 
             hasImpacted = true;
@@ -435,6 +431,7 @@ namespace TankGame.Weapons
         public void OnReturnToPool()
         {
             isActive = false;
+            ownerRoot = null;
 
             // Сброс физики
             if (rb != null)
@@ -457,6 +454,14 @@ namespace TankGame.Weapons
             }
             
             Debug.Log($"[Bullet] Returned to pool: {gameObject.name}");
+        }
+
+        private bool IsOwnerCollider(Collider other)
+        {
+            if (other == null)
+                return false;
+
+            return ownerRoot != null && other.transform.root == ownerRoot;
         }
 
         private void ResolveTriggerImpact(Collider other, out Vector3 hitPoint, out Vector3 hitNormal)

@@ -1,5 +1,6 @@
 using TankGame.Tank.Components;
 using TankGame.Tank;
+using TankGame.Commands;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -103,7 +104,10 @@ namespace TankGame.Tank.AI
         private void OnEnable()
         {
             if (tankController != null)
+            {
                 tankController.SetIsLocalPlayer(false);
+                tankController.SetAuthorityMode(TankController.AuthorityMode.NetworkProxy);
+            }
         }
 
         private void Update()
@@ -167,8 +171,16 @@ namespace TankGame.Tank.AI
 
             agent.updatePosition = false;
             agent.updateRotation = false;
+            agent.updateUpAxis = false;
             agent.autoBraking = true;
             agent.stoppingDistance = attackRange * 0.8f;
+
+            if (movement != null)
+            {
+                agent.speed = Mathf.Max(0.1f, movement.MoveSpeed);
+                agent.angularSpeed = Mathf.Max(1f, movement.RotationSpeed);
+                agent.acceleration = Mathf.Max(1f, movement.MoveSpeed * 3f);
+            }
         }
 
         private void TryAutoFindTarget()
@@ -243,6 +255,9 @@ namespace TankGame.Tank.AI
                     desiredWorld.Normalize();
             }
 
+            if (desiredWorld.sqrMagnitude > 0.01f)
+                desiredWorld.Normalize();
+
             Vector3 forward = -transform.forward;
             forward.y = 0f;
             forward.Normalize();
@@ -315,13 +330,37 @@ namespace TankGame.Tank.AI
             if (distanceToTarget > fireRange)
                 return;
 
-            if (!activeWeapon.CanFire)
-                return;
-
             if (requireTurretAlignmentForFire && !turret.IsFirePointAligned)
                 return;
 
             if (requireLineOfSight && !HasLineOfSight(aimPoint))
+                return;
+
+            if (tankController != null)
+            {
+                TankInputCommand fireCommand = new TankInputCommand(
+                    0f,
+                    0f,
+                    Vector2.zero,
+                    true,
+                    true,
+                    false,
+                    false,
+                    0,
+                    true,
+                    true,
+                    false,
+                    0,
+                    true,
+                    aimPoint,
+                    0f
+                );
+
+                tankController.ProcessCommand(fireCommand);
+                return;
+            }
+
+            if (!activeWeapon.CanFire)
                 return;
 
             float stability = turret.GetFireStability();
