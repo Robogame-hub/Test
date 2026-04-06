@@ -12,195 +12,170 @@ namespace TankGame.Tank.AI
     [RequireComponent(typeof(TankTurret))]
     [RequireComponent(typeof(TankWeapon))]
     [RequireComponent(typeof(TankHealth))]
-    public class NavMeshTankAI : MonoBehaviour
+    public sealed class NavMeshTankAI : MonoBehaviour
     {
-        private enum CheckpointRoutingMode
-        {
-            AssistIfBetter = 0,
-            ForceWhenAvailable = 1
-        }
-
-        [Header("Ссылки")]
-        [Tooltip("Цель для бота. Если не задана и включен autoFindLocalPlayerTarget, бот будет искать локального игрока.")]
+        [Header("References")]
         [SerializeField] private Transform target;
-        [Tooltip("Контроллер танка бота.")]
         [SerializeField] private TankController tankController;
-        [Tooltip("Компонент движения танка.")]
         [SerializeField] private TankMovement movement;
-        [Tooltip("Компонент башни танка.")]
         [SerializeField] private TankTurret turret;
-        [Tooltip("Оружие по умолчанию, если не используется переключение через TankController.")]
         [SerializeField] private TankWeapon weapon;
-        [Tooltip("Компонент здоровья.")]
         [SerializeField] private TankHealth health;
-        [Tooltip("Анимация гусениц.")]
-        [SerializeField] private TrackAnimationController trackAnimation;
-        [Tooltip("NavMeshAgent для навигации по маршруту.")]
         [SerializeField] private NavMeshAgent agent;
 
-        [Header("Поиск Цели")]
-        [Tooltip("Автоматически искать локального игрока как цель.")]
+        [Header("Target")]
         [SerializeField] private bool autoFindLocalPlayerTarget = true;
-        [Tooltip("Интервал между попытками найти цель (сек).")]
         [SerializeField] private float targetSearchInterval = 1f;
-        [Tooltip("Смещение точки прицеливания по высоте относительно цели.")]
         [SerializeField] private float targetAimHeightOffset = 0.6f;
-        [Tooltip("Радиус обнаружения цели. Башня будет наводиться только в этом радиусе и при видимости.")]
-        [SerializeField] private float targetDetectionRange = 60f;
+        [SerializeField] private float targetDetectionRange = 70f;
+        [SerializeField] [Range(10f, 180f)] private float visionConeAngle = 130f;
 
-        [Header("Движение")]
-        [Tooltip("Максимальная дистанция преследования цели.")]
-        [SerializeField] private float chaseRange = 60f;
-        [Tooltip("Дистанция атаки (используется для остановки и поведения в бою).")]
+        [Header("Movement")]
+        [SerializeField] private float chaseRange = 80f;
         [SerializeField] private float attackRange = 22f;
-        [Tooltip("Минимальная комфортная дистанция до других ботов для разъезда.")]
-        [SerializeField] private float minDistanceToOtherBots = 6f;
-        [Tooltip("Как часто пересчитывать цель NavMeshAgent (сек).")]
         [SerializeField] private float repathInterval = 0.2f;
-        [Tooltip("Угол, при котором горизонтальный ввод достигает максимума.")]
         [SerializeField] private float turnAngleForFullInput = 60f;
-        [Tooltip("Если угол к направлению движения больше этого значения, бот не дает газ вперед.")]
         [SerializeField] private float moveAngleLimit = 100f;
+        [SerializeField] private bool invertBodyForward = true;
 
-        [Header("Маршрут Через Checkpoint")]
-        [Tooltip("Использовать маршрутизацию через контрольные точки NavMeshCheckpointNode.")]
+        [Header("Patrol")]
         [SerializeField] private bool useNavMeshCheckpoints = true;
-        [Tooltip("Режим маршрутизации: AssistIfBetter - только если выгоднее, ForceWhenAvailable - всегда при доступности.")]
-        [SerializeField] private CheckpointRoutingMode checkpointRoutingMode = CheckpointRoutingMode.ForceWhenAvailable;
-        [Tooltip("Список контрольных точек вручную. Если пусто и autoFindCheckpointNodesIfEmpty=true, точки ищутся автоматически.")]
         [SerializeField] private Transform[] checkpointNodeTransforms;
-        [Tooltip("Автоматически искать NavMeshCheckpointNode на сцене, если список пуст.")]
         [SerializeField] private bool autoFindCheckpointNodesIfEmpty = true;
-        [Tooltip("Базовая дистанция, на которой точка считается достигнутой.")]
-        [SerializeField] private float checkpointReachDistance = 2.75f;
-        [Tooltip("Радиус поиска ближайшей позиции на NavMesh для точек маршрута.")]
+        [SerializeField] private float checkpointReachDistance = 2.5f;
         [SerializeField] private float checkpointSampleRadius = 4f;
-        [Tooltip("Интервал переоценки маршрута по checkpoint (сек).")]
-        [SerializeField] private float checkpointReevaluateInterval = 0.4f;
-        [Tooltip("Минимальная выгода checkpoint-маршрута над прямым путем (для AssistIfBetter).")]
-        [SerializeField] private float checkpointMinBenefitDistance = 1.5f;
-        [Tooltip("Не переключать checkpoint, пока текущий не достигнут.")]
-        [SerializeField] private bool keepCurrentCheckpointUntilReached = true;
-        [Tooltip("Считать маршрут один раз и держать его до завершения.")]
-        [SerializeField] private bool calculateCheckpointRouteOnceUntilCompleted = true;
-        [Tooltip("Остановка перед checkpoint на этой дистанции.")]
-        [SerializeField] private float checkpointStoppingDistance = 0.45f;
-        [Tooltip("Множитель точности достижения checkpoint (к checkpointReachDistance).")]
-        [SerializeField] private float checkpointReachDistanceScale = 0.45f;
+        [SerializeField] private float patrolStoppingDistance = 1f;
+        [SerializeField] private float patrolStuckTimeout = 3f;
+        [SerializeField] private float patrolPathFailureTimeout = 1.5f;
+        [SerializeField] private float patrolRouteRebuildInterval = 4f;
+        [SerializeField] private int fallbackPatrolPointCount = 5;
+        [SerializeField] private float fallbackPatrolRadius = 50f;
+        [SerializeField] private float fallbackPatrolPointSpacing = 8f;
 
-        [Header("Бой")]
-        [Tooltip("Дальность стрельбы.")]
-        [SerializeField] private float fireRange = 20f;
-        [Tooltip("Требовать прямую видимость для выстрела.")]
+        [Header("Combat")]
+        [SerializeField] private float fireRange = 25f;
         [SerializeField] private bool requireLineOfSight = true;
-        [Tooltip("Слои, учитываемые при проверке видимости (raycast).")]
         [SerializeField] private LayerMask lineOfSightMask = ~0;
-        [Tooltip("Требовать выравнивание башни перед выстрелом.")]
         [SerializeField] private bool requireTurretAlignmentForFire = false;
-        [Tooltip("Останавливать движение, если цель не видна (в рамках lineOfSightGraceTime).")]
-        [SerializeField] private bool stopMovementWhenTargetNotVisible = true;
-        [Tooltip("Небольшое время после потери LOS, когда движение еще разрешено (сек).")]
-        [SerializeField] private float lineOfSightGraceTime = 0.35f;
+        [SerializeField] private float chaseMemoryDuration = 2f;
+        [SerializeField] private float searchDuration = 4f;
+        [SerializeField] private float searchReachDistance = 3f;
 
-        [Header("Патруль И Анти-Зацикливание")]
-        [Tooltip("Включить анти-луп логику и fallback в патруль.")]
-        [SerializeField] private bool enableAntiLoopPatrol = true;
-        [Tooltip("Количество точек в патрульном маршруте.")]
-        [SerializeField] private int patrolPointCount = 5;
-        [Tooltip("Радиус наблюдения за прогрессом, чтобы распознать зацикливание.")]
-        [SerializeField] private float loopDetectionRadius = 6f;
-        [Tooltip("Время наблюдения за прогрессом перед выводом о зацикливании (сек).")]
-        [SerializeField] private float loopDetectionDuration = 3f;
-        [Tooltip("Минимальный прогресс, который считается достаточным (метры).")]
-        [SerializeField] private float loopMinProgressDistance = 1.25f;
-        [Tooltip("Сколько раз пытаться перестроить альтернативный маршрут перед переходом в патруль.")]
-        [SerializeField] private int maxAlternativeRouteAttemptsBeforePatrol = 3;
-        [Tooltip("На сколько секунд временно блокировать проблемный checkpoint.")]
-        [SerializeField] private float blockedNodeDuration = 8f;
-        [Tooltip("Дистанция остановки при движении по патрулю.")]
-        [SerializeField] private float patrolStoppingDistance = 0.4f;
-        [Tooltip("Включить дальний fallback в патруль, когда цель далеко и бот бездействует.")]
-        [SerializeField] private bool enableFarDistancePatrolFallback = true;
-        [Tooltip("Дистанция, после которой активируется дальний fallback.")]
-        [SerializeField] private float farDistanceForPatrolFallback = 55f;
-        [Tooltip("Интервал проверки условий дальнего fallback (сек).")]
-        [SerializeField] private float farPatrolCheckInterval = 1.5f;
-        [Tooltip("Задержка бездействия перед стартом патруля (сек).")]
-        [SerializeField] private float idleBeforePatrolDelay = 1f;
-        [Tooltip("Назначать маршрут патруля сразу при старте бота.")]
-        [SerializeField] private bool assignPatrolRouteOnStart = true;
-        [Tooltip("Небольшая задержка перед стартовой выдачей патруля (сек), чтобы NavMesh успел инициализироваться.")]
-        [SerializeField] private float startPatrolAssignmentDelay = 0.2f;
-
-        [Header("Смена Оружия")]
-        [Tooltip("Автоматически переключать оружие по дистанции до цели.")]
+        [Header("Weapon Switching")]
         [SerializeField] private bool enableWeaponSwitching = true;
-        [Tooltip("До этой дистанции предпочитать пулемет, дальше - пушку.")]
         [SerializeField] private float machineGunPreferredRange = 12f;
-        [Tooltip("Минимальная пауза между переключениями оружия (сек).")]
         [SerializeField] private float weaponSwitchCooldown = 0.5f;
 
-        [Header("Отладка")]
-        [Tooltip("Включить отладочные сообщения AI в консоль.")]
-        [SerializeField] private bool enableAiDebugLogs = true;
-        [Tooltip("Минимальный интервал логов о смене режима назначения (сек).")]
-        [SerializeField] private float destinationModeLogCooldown = 0.75f;
-        [Tooltip("Насколько сильно бот отклоняется от маршрута из-за разъезда с союзными ботами (для checkpoint/patrol).")]
-        [SerializeField] [Range(0f, 1f)] private float routeSeparationInfluence = 0.12f;
-        [Tooltip("Насколько сильно бот отклоняется от направления в режиме прямого движения к цели.")]
-        [SerializeField] [Range(0f, 1f)] private float directSeparationInfluence = 0.3f;
+        [Header("Authority")]
+        [SerializeField] private bool forceBotAuthority = true;
+        [SerializeField] private TankController.AuthorityMode botAuthorityMode = TankController.AuthorityMode.LocalOnly;
 
-        private enum DestinationMode
-        {
-            None = 0,
-            Direct = 1,
-            Checkpoint = 2,
-            Patrol = 3
-        }
+        [Header("Debug")]
+        [SerializeField] private bool enableAiDebugLogs = false;
+
+        private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
+        private readonly List<NavMeshCheckpointNode> checkpointBuffer = new List<NavMeshCheckpointNode>(32);
+
+        private NavMeshCheckpointNode[] cachedCheckpointNodes;
+        private TankAIBrain brain;
+        private TankAIPatrolPlanner patrolPlanner;
 
         private float nextTargetSearchTime;
         private float nextRepathTime;
         private float nextWeaponSwitchTime;
-        private float lastLineOfSightTime = float.NegativeInfinity;
-        private float nextTargetPathDistanceUpdateTime;
-        private float cachedTargetPathDistance = float.PositiveInfinity;
-        private float nextFarPatrolCheckTime;
-        private float currentVerticalInput;
-        private float currentHorizontalInput;
+        private float nextPatrolRouteRebuildTime;
+        private float invalidPathStartTime = float.NegativeInfinity;
 
-        private readonly List<NavMeshCheckpointNode> activeCheckpointRoute = new List<NavMeshCheckpointNode>(16);
-        private int activeRouteIndex = -1;
-        private float nextCheckpointReevaluateTime;
-        private NavMeshCheckpointNode[] cachedCheckpointNodes;
-
-        private NavMeshPath directPathBuffer;
-        private NavMeshPath pathToCheckpointBuffer;
-        private NavMeshPath checkpointToTargetPathBuffer;
-        private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
-        private readonly List<NavMeshCheckpointNode> patrolRoute = new List<NavMeshCheckpointNode>(8);
-        private readonly Dictionary<NavMeshCheckpointNode, float> blockedNodesUntilTime = new Dictionary<NavMeshCheckpointNode, float>(16);
-        private int patrolRouteIndex = -1;
-        private int patrolRouteDirection = 1;
-        private bool waitingPatrolAfterNearestCheckpoint;
-        private bool loopCheckActive;
-        private float loopCheckStartTime;
-        private int observedRouteIndex = -1;
-        private float observedRouteStartDistance;
-        private float observedRouteBestDistance;
-        private int consecutiveAlternativeRouteFailures;
-        private string lastIdleReason;
-        private DestinationMode lastDestinationMode = DestinationMode.None;
-        private DestinationMode currentDestinationMode = DestinationMode.None;
-        private float nextDestinationModeLogTime;
-        private float farIdleStartTime = float.NegativeInfinity;
-        private float noSightIdleStartTime = float.NegativeInfinity;
-        private bool pendingStartPatrolAssignment;
-        private float startPatrolAssignmentTime;
-
-        private bool HasActiveRoute => activeRouteIndex >= 0 && activeRouteIndex < activeCheckpointRoute.Count;
-        private bool IsPatrolling => patrolRouteIndex >= 0 && patrolRouteIndex < patrolRoute.Count;
+        private Vector3 lastAgentDestination;
+        private bool hasLastAgentDestination;
+        private TankAIState lastLoggedState = TankAIState.Idle;
 
         private void Awake()
+        {
+            ResolveReferences();
+            ConfigureAgent();
+            brain = new TankAIBrain(chaseMemoryDuration, searchDuration, searchReachDistance);
+            patrolPlanner = new TankAIPatrolPlanner();
+        }
+
+        private void OnEnable()
+        {
+            ApplyBotAuthority();
+            ResetRuntimeState();
+            BuildPatrolRoute(true);
+        }
+
+        private void OnDisable()
+        {
+            SendIdleCommand();
+            if (agent != null && agent.isOnNavMesh && agent.hasPath)
+                agent.ResetPath();
+        }
+
+        private void Update()
+        {
+            if (!IsOperational())
+            {
+                SendIdleCommand();
+                return;
+            }
+
+            if (tankController != null && tankController.IsLocalPlayer)
+            {
+                SendIdleCommand();
+                return;
+            }
+
+            TryAutoFindTarget();
+            Transform targetTransform = ResolveTarget();
+            bool hasTarget = targetTransform != null;
+
+            Vector3 targetPosition = hasTarget ? targetTransform.position : Vector3.zero;
+            float distanceToTarget = hasTarget
+                ? GetPlanarDistance(transform.position, targetPosition)
+                : float.PositiveInfinity;
+
+            float effectiveDetectionRange = Mathf.Max(Mathf.Max(0.5f, targetDetectionRange), chaseRange);
+            bool targetInDetectionRange = hasTarget && distanceToTarget <= effectiveDetectionRange;
+            Vector3 visibleAimPoint = hasTarget ? GetTargetAimPoint(targetTransform) : Vector3.zero;
+            bool targetVisible = hasTarget && IsTargetVisible(targetTransform, visibleAimPoint, distanceToTarget);
+
+            TankAIBrainInput brainInput = new TankAIBrainInput
+            {
+                Time = Time.time,
+                SelfPosition = transform.position,
+                HasTarget = hasTarget,
+                TargetVisible = targetVisible,
+                TargetInDetectionRange = targetInDetectionRange,
+                TargetPosition = targetPosition
+            };
+
+            TankAIBrainDecision decision = brain.Evaluate(brainInput);
+            LogStateChange(decision.State);
+
+            bool hasDestination = TryResolveDestination(decision, hasTarget, targetPosition, out Vector3 destination, out float stoppingDistance);
+            UpdateAgentDestination(hasDestination, destination, stoppingDistance);
+            HandlePatrolPathFailures(decision.State, hasDestination);
+
+            Vector2 movementInput = ComputeMovementInput(hasDestination);
+            UpdateCombatWeapon(hasTarget ? distanceToTarget : float.PositiveInfinity);
+
+            bool shouldAim = decision.ShouldAim && (hasTarget || decision.State == TankAIState.Search);
+            Vector3 aimPoint = shouldAim
+                ? (hasTarget ? visibleAimPoint : decision.AimPoint + Vector3.up * targetAimHeightOffset)
+                : Vector3.zero;
+
+            bool shouldFire = hasTarget && targetVisible && distanceToTarget <= Mathf.Max(0.5f, fireRange);
+            if (requireTurretAlignmentForFire && turret != null && !turret.IsFirePointAligned)
+                shouldFire = false;
+
+            TankWeapon activeWeapon = GetActiveWeapon();
+            bool shouldReload = ShouldReload(activeWeapon);
+
+            SendCommand(movementInput.y, movementInput.x, shouldAim, aimPoint, shouldFire, shouldReload);
+        }
+
+        private void ResolveReferences()
         {
             if (tankController == null)
                 tankController = GetComponent<TankController>();
@@ -212,111 +187,8 @@ namespace TankGame.Tank.AI
                 weapon = GetComponent<TankWeapon>();
             if (health == null)
                 health = GetComponent<TankHealth>();
-            if (trackAnimation == null)
-                trackAnimation = GetComponent<TrackAnimationController>();
             if (agent == null)
                 agent = GetComponent<NavMeshAgent>();
-
-            directPathBuffer = new NavMeshPath();
-            pathToCheckpointBuffer = new NavMeshPath();
-            checkpointToTargetPathBuffer = new NavMeshPath();
-
-            ConfigureAgent();
-            ClearCheckpointState();
-
-            if (targetDetectionRange <= 0.1f)
-                targetDetectionRange = chaseRange;
-        }
-
-        private void OnEnable()
-        {
-            if (tankController != null)
-            {
-                tankController.SetIsLocalPlayer(false);
-                tankController.SetAuthorityMode(TankController.AuthorityMode.NetworkProxy);
-            }
-
-            pendingStartPatrolAssignment = assignPatrolRouteOnStart;
-            startPatrolAssignmentTime = Time.time + Mathf.Max(0f, startPatrolAssignmentDelay);
-        }
-
-        private void Update()
-        {
-            if (health != null && !health.IsAlive())
-            {
-                SetIdleState("HealthDead");
-                return;
-            }
-
-            TryAssignStartPatrolRoute();
-
-            TryAutoFindTarget();
-            bool hasTarget = target != null;
-            float distance = hasTarget ? GetPlanarDistance(transform.position, target.position) : float.PositiveInfinity;
-
-            Vector3 aimPoint = hasTarget ? GetTargetAimPoint(target) : Vector3.zero;
-            bool hasLineOfSight = hasTarget && HasLineOfSight(aimPoint);
-            if (hasLineOfSight)
-                lastLineOfSightTime = Time.time;
-
-            bool targetInDetectionRange = hasTarget && distance <= Mathf.Max(0.1f, targetDetectionRange);
-            bool targetDetected = hasLineOfSight && targetInDetectionRange;
-            bool lineOfSightAllowedForMovement = hasLineOfSight ||
-                (Time.time - lastLineOfSightTime) <= Mathf.Max(0f, lineOfSightGraceTime);
-            bool farFromTarget = distance >= Mathf.Max(fireRange, farDistanceForPatrolFallback);
-            if (hasTarget && stopMovementWhenTargetNotVisible && !lineOfSightAllowedForMovement && !IsPatrolling && !farFromTarget)
-            {
-                SetNoLineOfSightHoldState();
-                return;
-            }
-            noSightIdleStartTime = float.NegativeInfinity;
-            lastIdleReason = null;
-
-            if (hasTarget)
-            {
-                EvaluateLoopAndMaybeEnterPatrol(targetDetected);
-                EvaluateFarDistancePatrolFallback(distance, targetDetected);
-            }
-
-            TankWeapon activeWeapon = GetActiveWeapon();
-            if (targetDetected)
-            {
-                turret.SetAimPoint(aimPoint);
-                activeWeapon?.SetAimPoint(aimPoint);
-
-                if (!turret.IsAiming)
-                    turret.StartAiming();
-
-                UpdateCombatWeapon(distance);
-            }
-            else
-            {
-                turret?.ClearAimPoint();
-                activeWeapon?.ClearAimPoint();
-                if (turret != null && turret.IsAiming)
-                    turret.StopAiming();
-                turret?.ReturnToIdleRotation();
-            }
-
-            UpdateMovementInputs(distance);
-            if (hasTarget)
-                TryFireAtTarget(distance, aimPoint, targetDetected && hasLineOfSight);
-            TryReloadIfNeeded();
-        }
-
-        private void FixedUpdate()
-        {
-            if (health != null && !health.IsAlive())
-                return;
-
-            movement.ApplyMovement(currentVerticalInput, currentHorizontalInput, false);
-            trackAnimation?.UpdateTrackAnimation(currentVerticalInput, currentHorizontalInput);
-            movement.AlignToGround();
-        }
-
-        private void OnDisable()
-        {
-            SetIdleState("OnDisable");
         }
 
         private void ConfigureAgent()
@@ -328,14 +200,46 @@ namespace TankGame.Tank.AI
             agent.updateRotation = false;
             agent.updateUpAxis = false;
             agent.autoBraking = true;
-            agent.stoppingDistance = attackRange * 0.8f;
+            agent.autoRepath = true;
 
             if (movement != null)
             {
                 agent.speed = Mathf.Max(0.1f, movement.MoveSpeed);
                 agent.angularSpeed = Mathf.Max(1f, movement.RotationSpeed);
-                agent.acceleration = Mathf.Max(1f, movement.MoveSpeed * 3f);
+                agent.acceleration = Mathf.Max(2f, movement.MoveSpeed * 3f);
             }
+        }
+
+        private void ApplyBotAuthority()
+        {
+            if (!forceBotAuthority || tankController == null)
+                return;
+
+            tankController.SetIsLocalPlayer(false);
+            tankController.SetAuthorityMode(botAuthorityMode);
+        }
+
+        private void ResetRuntimeState()
+        {
+            brain?.Reset();
+            nextTargetSearchTime = 0f;
+            nextRepathTime = 0f;
+            nextWeaponSwitchTime = 0f;
+            nextPatrolRouteRebuildTime = 0f;
+            invalidPathStartTime = float.NegativeInfinity;
+            hasLastAgentDestination = false;
+            lastLoggedState = TankAIState.Idle;
+        }
+
+        private bool IsOperational()
+        {
+            if (movement == null || turret == null || health == null || agent == null)
+                return false;
+            if (!health.IsAlive())
+                return false;
+            if (!agent.isOnNavMesh)
+                return false;
+            return true;
         }
 
         private void TryAutoFindTarget()
@@ -348,80 +252,203 @@ namespace TankGame.Tank.AI
             if (localPlayer == null || localPlayer == tankController)
                 return;
 
-            TankHealth candidateHealth = localPlayer.GetComponent<TankHealth>();
-            if (candidateHealth != null && !candidateHealth.IsAlive())
+            TankHealth localHealth = localPlayer.GetComponent<TankHealth>();
+            if (localHealth != null && !localHealth.IsAlive())
                 return;
 
             target = localPlayer.transform;
         }
 
-        private void TryAssignStartPatrolRoute()
+        private Transform ResolveTarget()
         {
-            if (!pendingStartPatrolAssignment)
-                return;
+            if (target == null)
+                return null;
 
-            if (Time.time < startPatrolAssignmentTime)
-                return;
+            if (target == transform || target.IsChildOf(transform))
+            {
+                target = null;
+                return null;
+            }
 
+            TankHealth targetHealth = target.GetComponentInParent<TankHealth>();
+            if (targetHealth != null && !targetHealth.IsAlive())
+            {
+                target = null;
+                return null;
+            }
+
+            return target;
+        }
+
+        private bool TryResolveDestination(
+            TankAIBrainDecision decision,
+            bool hasTarget,
+            Vector3 targetPosition,
+            out Vector3 destination,
+            out float stoppingDistance)
+        {
+            destination = Vector3.zero;
+            stoppingDistance = Mathf.Max(0.5f, attackRange * 0.85f);
+
+            switch (decision.State)
+            {
+                case TankAIState.Chase:
+                {
+                    if (hasTarget)
+                    {
+                        if (GetPlanarDistance(transform.position, targetPosition) > chaseRange)
+                        {
+                            destination = targetPosition;
+                            stoppingDistance = Mathf.Max(0.5f, attackRange * 0.75f);
+                            return true;
+                        }
+
+                        destination = targetPosition;
+                        stoppingDistance = Mathf.Max(0.5f, attackRange * 0.75f);
+                        return true;
+                    }
+
+                    if (decision.HasDestination)
+                    {
+                        destination = decision.Destination;
+                        stoppingDistance = Mathf.Max(0.5f, attackRange * 0.75f);
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                case TankAIState.Search:
+                {
+                    if (decision.HasDestination)
+                    {
+                        destination = decision.Destination;
+                        stoppingDistance = Mathf.Max(0.5f, patrolStoppingDistance);
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                case TankAIState.Patrol:
+                {
+                    if (Time.time >= nextPatrolRouteRebuildTime && (patrolPlanner == null || !patrolPlanner.HasRoute))
+                        BuildPatrolRoute(true);
+
+                    if (patrolPlanner != null &&
+                        patrolPlanner.TryGetCurrentDestination(
+                            transform.position,
+                            Time.time,
+                            checkpointReachDistance,
+                            patrolStuckTimeout,
+                            out destination))
+                    {
+                        stoppingDistance = Mathf.Max(0.4f, patrolStoppingDistance);
+                        return true;
+                    }
+
+                    BuildPatrolRoute(false);
+
+                    if (patrolPlanner != null &&
+                        patrolPlanner.TryGetCurrentDestination(
+                            transform.position,
+                            Time.time,
+                            checkpointReachDistance,
+                            patrolStuckTimeout,
+                            out destination))
+                    {
+                        stoppingDistance = Mathf.Max(0.4f, patrolStoppingDistance);
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                case TankAIState.Idle:
+                default:
+                    return false;
+            }
+        }
+
+        private void UpdateAgentDestination(bool hasDestination, Vector3 destination, float stoppingDistance)
+        {
             if (agent == null || !agent.isOnNavMesh)
                 return;
 
-            if (IsPatrolling)
+            agent.nextPosition = transform.position;
+
+            if (!hasDestination)
             {
-                pendingStartPatrolAssignment = false;
+                if (agent.hasPath)
+                    agent.ResetPath();
+                hasLastAgentDestination = false;
                 return;
             }
 
-            if (TryStartPatrolFromNearestNodes())
-            {
-                pendingStartPatrolAssignment = false;
-                LogAi("PATROL", "Startup: assigned patrol route.");
-                return;
-            }
+            bool destinationChanged = !hasLastAgentDestination ||
+                                      (lastAgentDestination - destination).sqrMagnitude > 1f;
 
-            startPatrolAssignmentTime = Time.time + 1f;
+            if (!destinationChanged && Time.time < nextRepathTime)
+                return;
+
+            nextRepathTime = Time.time + Mathf.Max(0.05f, repathInterval);
+            agent.stoppingDistance = Mathf.Max(0.1f, stoppingDistance);
+            agent.SetDestination(destination);
+
+            lastAgentDestination = destination;
+            hasLastAgentDestination = true;
         }
 
-        private void UpdateMovementInputs(float distanceToTarget)
+        private void HandlePatrolPathFailures(TankAIState state, bool hasDestination)
         {
-            if (agent == null || !agent.isOnNavMesh || (!IsPatrolling && target == null))
+            if (state != TankAIState.Patrol || !hasDestination || patrolPlanner == null || agent == null || !agent.isOnNavMesh)
             {
-                currentVerticalInput = 0f;
-                currentHorizontalInput = 0f;
-                LogAi("MOVE", "Agent unavailable or target missing, movement input reset.");
+                invalidPathStartTime = float.NegativeInfinity;
                 return;
             }
 
-            agent.nextPosition = transform.position;
-            float effectiveDistanceToTarget = IsPatrolling ? float.PositiveInfinity : GetEffectiveDistanceToTarget(distanceToTarget);
-            bool shouldMove = IsPatrolling || effectiveDistanceToTarget > fireRange;
+            if (agent.pathPending)
+                return;
 
-            if (shouldMove && Time.time >= nextRepathTime)
-            {
-                nextRepathTime = Time.time + Mathf.Max(0.05f, repathInterval);
-                UpdateAgentDestination();
-            }
-            else if (!shouldMove && agent.hasPath)
-            {
-                agent.ResetPath();
-                ClearCheckpointState();
-            }
+            bool invalidPath = agent.pathStatus == NavMeshPathStatus.PathInvalid ||
+                               agent.pathStatus == NavMeshPathStatus.PathPartial;
 
-            if (!shouldMove)
+            if (!invalidPath)
             {
-                currentVerticalInput = 0f;
-                currentHorizontalInput = 0f;
+                invalidPathStartTime = float.NegativeInfinity;
                 return;
             }
+
+            if (invalidPathStartTime < 0f)
+            {
+                invalidPathStartTime = Time.time;
+                return;
+            }
+
+            if (Time.time - invalidPathStartTime < Mathf.Max(0.5f, patrolPathFailureTimeout))
+                return;
+
+            patrolPlanner.SkipCurrentPoint();
+            invalidPathStartTime = float.NegativeInfinity;
+            LogAi("PATROL", "Skipped patrol point due to invalid/partial path.");
+        }
+
+        private Vector2 ComputeMovementInput(bool hasDestination)
+        {
+            if (!hasDestination || agent == null || !agent.isOnNavMesh)
+                return Vector2.zero;
+
+            if (!agent.pathPending && agent.hasPath && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
+                return Vector2.zero;
 
             Vector3 desiredWorld = Vector3.zero;
 
             if (!agent.pathPending && agent.hasPath)
             {
-                Vector3 toSteering = agent.steeringTarget - transform.position;
-                toSteering.y = 0f;
-                if (toSteering.sqrMagnitude > 0.01f)
-                    desiredWorld = toSteering.normalized;
+                Vector3 toSteeringTarget = agent.steeringTarget - transform.position;
+                toSteeringTarget.y = 0f;
+                if (toSteeringTarget.sqrMagnitude > 0.01f)
+                    desiredWorld = toSteeringTarget.normalized;
             }
 
             if (desiredWorld.sqrMagnitude < 0.01f)
@@ -431,967 +458,171 @@ namespace TankGame.Tank.AI
             }
 
             if (desiredWorld.sqrMagnitude < 0.01f)
-            {
-                currentVerticalInput = 0f;
-                currentHorizontalInput = 0f;
+                return Vector2.zero;
 
-                if (!agent.pathPending)
-                    UpdateAgentDestination();
+            desiredWorld.Normalize();
 
-                return;
-            }
-
-            Vector3 separation = GetSeparationFromOtherBots();
-            if (separation.sqrMagnitude > 0.01f)
-            {
-                float influence = currentDestinationMode == DestinationMode.Direct
-                    ? Mathf.Clamp01(directSeparationInfluence)
-                    : Mathf.Clamp01(routeSeparationInfluence);
-                Vector3 separatedDirection = (desiredWorld + separation).normalized;
-                desiredWorld = Vector3.Slerp(desiredWorld, separatedDirection, influence);
-                desiredWorld.y = 0f;
-                if (desiredWorld.sqrMagnitude > 0.01f)
-                    desiredWorld.Normalize();
-            }
-
-            if (desiredWorld.sqrMagnitude > 0.01f)
-                desiredWorld.Normalize();
-
-            Vector3 forward = -transform.forward;
+            Vector3 forward = invertBodyForward ? -transform.forward : transform.forward;
             forward.y = 0f;
+            if (forward.sqrMagnitude < 0.01f)
+                return Vector2.zero;
             forward.Normalize();
 
             float signedAngle = Vector3.SignedAngle(forward, desiredWorld, Vector3.up);
-            currentHorizontalInput = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
+            float horizontal = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
+            float vertical = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
 
-            float vert = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
-            float distToNearestBot = GetDistanceToNearestOtherBot();
-            if (distToNearestBot >= 0f && distToNearestBot < minDistanceToOtherBots)
-                vert = 0f;
-            currentVerticalInput = vert;
+            return new Vector2(horizontal, vertical);
         }
 
-        private void UpdateAgentDestination()
+        private void BuildPatrolRoute(bool force)
         {
-            if (agent == null || !agent.isOnNavMesh || (!IsPatrolling && target == null))
+            if (patrolPlanner == null)
                 return;
 
-            Vector3 destination = target != null ? target.position : transform.position;
-            bool usesCheckpointDestination = false;
-            bool usesPatrolDestination = false;
+            if (!force && Time.time < nextPatrolRouteRebuildTime)
+                return;
 
-            if (IsPatrolling && TryGetCurrentPatrolDestination(out Vector3 patrolDestination))
+            nextPatrolRouteRebuildTime = Time.time + Mathf.Max(1f, patrolRouteRebuildInterval);
+            patrolPlanner.Reset();
+
+            if (useNavMeshCheckpoints)
             {
-                destination = patrolDestination;
-                usesPatrolDestination = true;
-                usesCheckpointDestination = true;
-            }
-            else if (IsPatrolling)
-            {
-                ClearPatrolState();
+                ResolveCheckpointNodes(checkpointBuffer);
+                patrolPlanner.RebuildFromCheckpoints(checkpointBuffer, transform.position, checkpointSampleRadius);
             }
 
-            if (!usesPatrolDestination && target != null && TryGetCheckpointDestination(target.position, out Vector3 checkpointDestination))
+            if (!patrolPlanner.HasRoute)
             {
-                destination = checkpointDestination;
-                usesCheckpointDestination = true;
-            }
-            else if (!usesPatrolDestination)
-            {
-                ClearCheckpointState();
-            }
-
-            float desiredStoppingDistance;
-            DestinationMode mode;
-            if (usesPatrolDestination)
-            {
-                desiredStoppingDistance = Mathf.Max(0.05f, patrolStoppingDistance);
-                mode = DestinationMode.Patrol;
-            }
-            else if (usesCheckpointDestination)
-            {
-                desiredStoppingDistance = Mathf.Max(0.05f, checkpointStoppingDistance);
-                mode = DestinationMode.Checkpoint;
-            }
-            else
-            {
-                desiredStoppingDistance = attackRange * 0.8f;
-                mode = DestinationMode.Direct;
+                patrolPlanner.RebuildFallbackRoute(
+                    transform.position,
+                    fallbackPatrolPointCount,
+                    fallbackPatrolRadius,
+                    checkpointSampleRadius,
+                    fallbackPatrolPointSpacing);
             }
 
-            agent.stoppingDistance = desiredStoppingDistance;
-            currentDestinationMode = mode;
-
-            agent.SetDestination(destination);
-            LogDestinationMode(mode, destination, desiredStoppingDistance);
+            LogAi("PATROL", $"Route rebuild complete. points={patrolPlanner.PatrolPointCount}");
         }
 
-        private void EvaluateLoopAndMaybeEnterPatrol(bool hasLineOfSight)
+        private void ResolveCheckpointNodes(List<NavMeshCheckpointNode> output)
         {
-            if (!enableAntiLoopPatrol || !hasLineOfSight || IsPatrolling || !HasActiveRoute)
-            {
-                ResetLoopCheck();
-                return;
-            }
+            output.Clear();
 
-            if (!TryGetCurrentRouteDestination(out Vector3 routeDestination))
-            {
-                ResetLoopCheck();
-                return;
-            }
-
-            PurgeExpiredBlockedNodes();
-
-            float distanceToCurrentRoutePoint = GetPlanarDistance(transform.position, routeDestination);
-            if (distanceToCurrentRoutePoint > Mathf.Max(0.5f, loopDetectionRadius))
-            {
-                ResetLoopCheck();
-                return;
-            }
-
-            if (!loopCheckActive || observedRouteIndex != activeRouteIndex)
-            {
-                loopCheckActive = true;
-                loopCheckStartTime = Time.time;
-                observedRouteIndex = activeRouteIndex;
-                observedRouteStartDistance = distanceToCurrentRoutePoint;
-                observedRouteBestDistance = distanceToCurrentRoutePoint;
-                consecutiveAlternativeRouteFailures = 0;
-                return;
-            }
-
-            if (distanceToCurrentRoutePoint < observedRouteBestDistance)
-                observedRouteBestDistance = distanceToCurrentRoutePoint;
-
-            if (Time.time - loopCheckStartTime < Mathf.Max(0.25f, loopDetectionDuration))
-                return;
-
-            float progress = observedRouteStartDistance - observedRouteBestDistance;
-            if (progress >= Mathf.Max(0.1f, loopMinProgressDistance))
-            {
-                loopCheckStartTime = Time.time;
-                observedRouteStartDistance = distanceToCurrentRoutePoint;
-                observedRouteBestDistance = distanceToCurrentRoutePoint;
-                return;
-            }
-
-            LogAi("LOOP",
-                $"Detected low progress near route node idx={activeRouteIndex}. start={observedRouteStartDistance:F2}, best={observedRouteBestDistance:F2}, progress={progress:F2}");
-
-            if (TrySwitchToAlternativeRoute())
-            {
-                ResetLoopCheck();
-                return;
-            }
-
-            consecutiveAlternativeRouteFailures++;
-            if (consecutiveAlternativeRouteFailures >= Mathf.Max(1, maxAlternativeRouteAttemptsBeforePatrol))
-            {
-                if (TryStartPatrolFromNearestNodes())
-                {
-                    consecutiveAlternativeRouteFailures = 0;
-                    LogAi("PATROL", "Fallback to patrol route after repeated alternative route failures.");
-                    return;
-                }
-            }
-
-            loopCheckStartTime = Time.time;
-            observedRouteStartDistance = distanceToCurrentRoutePoint;
-            observedRouteBestDistance = distanceToCurrentRoutePoint;
-        }
-
-        private void EvaluateFarDistancePatrolFallback(float distanceToTarget, bool targetDetected)
-        {
-            if (!enableAntiLoopPatrol || !enableFarDistancePatrolFallback || IsPatrolling)
-            {
-                waitingPatrolAfterNearestCheckpoint = false;
-                return;
-            }
-
-            if (distanceToTarget < Mathf.Max(fireRange, farDistanceForPatrolFallback))
-            {
-                farIdleStartTime = float.NegativeInfinity;
-                waitingPatrolAfterNearestCheckpoint = false;
-                return;
-            }
-
-            if (targetDetected)
-            {
-                farIdleStartTime = float.NegativeInfinity;
-                waitingPatrolAfterNearestCheckpoint = false;
-                return;
-            }
-
-            if (Time.time < nextFarPatrolCheckTime)
-                return;
-
-            nextFarPatrolCheckTime = Time.time + Mathf.Max(0.2f, farPatrolCheckInterval);
-
-            bool hasNoRoute = !HasActiveRoute;
-            bool hasNoUsefulPath = agent == null || !agent.hasPath || (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.25f);
-
-            if (waitingPatrolAfterNearestCheckpoint)
-            {
-                if (!hasNoRoute || !hasNoUsefulPath)
-                {
-                    farIdleStartTime = float.NegativeInfinity;
-                    return;
-                }
-
-                if (farIdleStartTime <= 0f)
-                {
-                    farIdleStartTime = Time.time;
-                    return;
-                }
-
-                if ((Time.time - farIdleStartTime) < Mathf.Max(0.1f, idleBeforePatrolDelay))
-                    return;
-
-                if (TryStartPatrolFromNearestNodes())
-                {
-                    waitingPatrolAfterNearestCheckpoint = false;
-                    farIdleStartTime = float.NegativeInfinity;
-                    LogAi("PATROL", "Far fallback: started patrol after reaching nearest checkpoint.");
-                }
-                return;
-            }
-
-            if (!hasNoRoute || !hasNoUsefulPath)
-            {
-                farIdleStartTime = float.NegativeInfinity;
-                return;
-            }
-
-            if (TrySetNearestCheckpointAsRoute())
-            {
-                waitingPatrolAfterNearestCheckpoint = true;
-                farIdleStartTime = float.NegativeInfinity;
-                LogAi("ROUTE", "Far fallback: moving to nearest checkpoint before patrol.");
-                return;
-            }
-
-            if (farIdleStartTime <= 0f)
-            {
-                farIdleStartTime = Time.time;
-                return;
-            }
-
-            if ((Time.time - farIdleStartTime) < Mathf.Max(0.1f, idleBeforePatrolDelay))
-                return;
-
-            if (TryStartPatrolFromNearestNodes())
-            {
-                waitingPatrolAfterNearestCheckpoint = false;
-                farIdleStartTime = float.NegativeInfinity;
-                LogAi("PATROL", "Far fallback: started patrol due to stalled long-range chase.");
-            }
-        }
-
-        private bool TrySetNearestCheckpointAsRoute()
-        {
-            NavMeshCheckpointNode[] nodes = GetCheckpointNodes();
-            if (nodes == null || nodes.Length == 0)
-                return false;
-
-            if (!TrySampleOnNavMesh(transform.position, out Vector3 selfOnMesh))
-                return false;
-
-            NavMeshCheckpointNode nearestNode = null;
-            float nearestDistance = float.PositiveInfinity;
-
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                NavMeshCheckpointNode node = nodes[i];
-                if (node == null)
-                    continue;
-
-                if (!TrySampleOnNavMesh(node.transform.position, out Vector3 nodeOnMesh))
-                    continue;
-                if (IsPositionReached(nodeOnMesh))
-                    continue;
-
-                float distance = GetPathDistance(selfOnMesh, nodeOnMesh, pathToCheckpointBuffer);
-                if (!IsFinitePathDistance(distance))
-                    continue;
-
-                if (distance < nearestDistance)
-                {
-                    nearestDistance = distance;
-                    nearestNode = node;
-                }
-            }
-
-            if (nearestNode == null)
-                return false;
-
-            activeCheckpointRoute.Clear();
-            activeCheckpointRoute.Add(nearestNode);
-            activeRouteIndex = 0;
-            nextCheckpointReevaluateTime = 0f;
-            return true;
-        }
-
-        private bool TryStartPatrolFromNearestNodes()
-        {
-            NavMeshCheckpointNode[] nodes = GetCheckpointNodes();
-            if (nodes == null || nodes.Length == 0)
-                return false;
-
-            if (!TrySampleOnNavMesh(transform.position, out Vector3 selfOnMesh))
-                return false;
-
-            var candidates = new List<(NavMeshCheckpointNode node, float distance)>(nodes.Length);
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                NavMeshCheckpointNode node = nodes[i];
-                if (node == null)
-                    continue;
-
-                if (!TrySampleOnNavMesh(node.transform.position, out Vector3 nodeOnMesh))
-                    continue;
-
-                float distance = GetPathDistance(selfOnMesh, nodeOnMesh, pathToCheckpointBuffer);
-                if (!IsFinitePathDistance(distance))
-                    continue;
-
-                candidates.Add((node, distance));
-            }
-
-            if (candidates.Count < 2)
-            {
-                LogAi("PATROL", "Cannot start patrol: less than 2 reachable checkpoint nodes.");
-                return false;
-            }
-
-            candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
-            int desiredCount = Mathf.Clamp(patrolPointCount, 2, 16);
-
-            patrolRoute.Clear();
-            for (int i = 0; i < candidates.Count && patrolRoute.Count < desiredCount; i++)
-            {
-                NavMeshCheckpointNode node = candidates[i].node;
-                if (patrolRoute.Contains(node))
-                    continue;
-
-                patrolRoute.Add(node);
-            }
-
-            if (patrolRoute.Count < 2)
-            {
-                patrolRoute.Clear();
-                patrolRouteIndex = -1;
-                LogAi("PATROL", "Cannot start patrol: selected nodes are insufficient.");
-                return false;
-            }
-
-            ClearCheckpointState();
-            patrolRouteIndex = 0;
-            patrolRouteDirection = 1;
-            waitingPatrolAfterNearestCheckpoint = false;
-            consecutiveAlternativeRouteFailures = 0;
-            ResetLoopCheck();
-            LogAi("PATROL", $"Patrol started with {patrolRoute.Count} nodes: {FormatNodeList(patrolRoute)}");
-            return true;
-        }
-
-        private bool TrySwitchToAlternativeRoute()
-        {
-            if (target == null || !HasActiveRoute)
-                return false;
-
-            NavMeshCheckpointNode currentRouteNode = activeCheckpointRoute[activeRouteIndex];
-            BlockNodeTemporarily(currentRouteNode);
-            LogAi("ALT", $"Blocking node '{GetNodeName(currentRouteNode)}' for {blockedNodeDuration:F1}s and rebuilding route.");
-
-            ClearCheckpointState();
-            nextCheckpointReevaluateTime = 0f;
-
-            if (TryBuildCheckpointRoute(target.position))
-            {
-                consecutiveAlternativeRouteFailures = 0;
-                LogAi("ALT", $"Alternative route selected: {FormatNodeList(activeCheckpointRoute)}");
-                return true;
-            }
-
-            LogAi("ALT", "Alternative route build failed.");
-            return false;
-        }
-
-        private bool TryGetCurrentPatrolDestination(out Vector3 destination)
-        {
-            destination = Vector3.zero;
-            if (!IsPatrolling)
-                return false;
-
-            while (IsPatrolling)
-            {
-                NavMeshCheckpointNode node = patrolRoute[patrolRouteIndex];
-                if (node == null)
-                {
-                    AdvancePatrolIndex();
-                    continue;
-                }
-
-                if (!TrySampleOnNavMesh(node.transform.position, out destination))
-                {
-                    AdvancePatrolIndex();
-                    continue;
-                }
-
-                if (IsPositionReached(destination))
-                {
-                    AdvancePatrolIndex();
-                    continue;
-                }
-
-                return true;
-            }
-
-            destination = Vector3.zero;
-            return false;
-        }
-
-        private void AdvancePatrolIndex()
-        {
-            if (!IsPatrolling)
-                return;
-
-            if (patrolRoute.Count <= 1)
-            {
-                patrolRouteIndex = 0;
-                return;
-            }
-
-            int nextIndex = patrolRouteIndex + patrolRouteDirection;
-            if (nextIndex >= patrolRoute.Count)
-            {
-                patrolRouteDirection = -1;
-                nextIndex = patrolRoute.Count - 2;
-            }
-            else if (nextIndex < 0)
-            {
-                patrolRouteDirection = 1;
-                nextIndex = 1;
-            }
-
-            patrolRouteIndex = Mathf.Clamp(nextIndex, 0, patrolRoute.Count - 1);
-        }
-
-        private bool TryGetCheckpointDestination(Vector3 finalTargetPosition, out Vector3 checkpointDestination)
-        {
-            checkpointDestination = Vector3.zero;
-
-            if (!useNavMeshCheckpoints)
-            {
-                ClearCheckpointState();
-                return false;
-            }
-
-            AdvanceRouteIfReached();
-            if ((keepCurrentCheckpointUntilReached || calculateCheckpointRouteOnceUntilCompleted) &&
-                TryGetCurrentRouteDestination(out checkpointDestination))
-                return true;
-
-            if (Time.time < nextCheckpointReevaluateTime && TryGetCurrentRouteDestination(out checkpointDestination))
-                return true;
-
-            nextCheckpointReevaluateTime = Time.time + Mathf.Max(0.05f, checkpointReevaluateInterval);
-
-            if (!TryBuildCheckpointRoute(finalTargetPosition))
-            {
-                ClearCheckpointState();
-                return false;
-            }
-
-            AdvanceRouteIfReached();
-            return TryGetCurrentRouteDestination(out checkpointDestination);
-        }
-
-        private bool TryBuildCheckpointRoute(Vector3 finalTargetPosition)
-        {
-            PurgeExpiredBlockedNodes();
-            if (TryBuildCheckpointRouteInternal(finalTargetPosition, false))
-                return true;
-
-            if (blockedNodesUntilTime.Count <= 0)
-                return false;
-
-            LogAi("ROUTE", "Retry route build by temporarily ignoring blocked nodes.");
-            return TryBuildCheckpointRouteInternal(finalTargetPosition, true);
-        }
-
-        private bool TryBuildCheckpointRouteInternal(Vector3 finalTargetPosition, bool ignoreBlockedNodes)
-        {
-            NavMeshCheckpointNode[] nodes = GetCheckpointNodes();
-            if (nodes == null || nodes.Length == 0)
-                return false;
-
-            if (!TrySampleOnNavMesh(transform.position, out Vector3 selfOnMesh) ||
-                !TrySampleOnNavMesh(finalTargetPosition, out Vector3 targetOnMesh))
-                return false;
-
-            float directPathDistance = GetPathDistance(selfOnMesh, targetOnMesh, directPathBuffer);
-
-            var validNodes = new List<NavMeshCheckpointNode>(nodes.Length);
-            var sampled = new List<Vector3>(nodes.Length);
-            var indexByNode = new Dictionary<NavMeshCheckpointNode, int>(nodes.Length);
-
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                NavMeshCheckpointNode node = nodes[i];
-                if (node == null)
-                    continue;
-                if (!ignoreBlockedNodes && IsNodeBlocked(node))
-                    continue;
-
-                if (!TrySampleOnNavMesh(node.transform.position, out Vector3 sampledPos))
-                    continue;
-
-                if (indexByNode.ContainsKey(node))
-                    continue;
-
-                int index = validNodes.Count;
-                validNodes.Add(node);
-                sampled.Add(sampledPos);
-                indexByNode[node] = index;
-            }
-
-            int n = validNodes.Count;
-            if (n == 0)
-                return false;
-
-            float[] goalCost = new float[n];
-            float[] dist = new float[n];
-            int[] prev = new int[n];
-            bool[] visited = new bool[n];
-
-            for (int i = 0; i < n; i++)
-            {
-                goalCost[i] = GetPathDistance(sampled[i], targetOnMesh, checkpointToTargetPathBuffer);
-                dist[i] = float.PositiveInfinity;
-                prev[i] = -1;
-                visited[i] = false;
-
-                float costFromSelf = GetPathDistance(selfOnMesh, sampled[i], pathToCheckpointBuffer);
-                if (IsFinitePathDistance(costFromSelf))
-                    dist[i] = costFromSelf;
-            }
-
-            bool hasReachableStart = false;
-            for (int i = 0; i < n; i++)
-            {
-                if (IsFinitePathDistance(dist[i]))
-                {
-                    hasReachableStart = true;
-                    break;
-                }
-            }
-
-            if (!hasReachableStart)
-                return false;
-
-            for (int step = 0; step < n; step++)
-            {
-                int u = -1;
-                float bestDist = float.PositiveInfinity;
-                for (int i = 0; i < n; i++)
-                {
-                    if (visited[i])
-                        continue;
-                    if (dist[i] >= bestDist)
-                        continue;
-                    bestDist = dist[i];
-                    u = i;
-                }
-
-                if (u < 0 || !IsFinitePathDistance(bestDist))
-                    break;
-
-                visited[u] = true;
-
-                NavMeshCheckpointNode[] nextNodes = validNodes[u].NextNodes;
-                if (nextNodes == null || nextNodes.Length == 0)
-                    continue;
-
-                for (int j = 0; j < nextNodes.Length; j++)
-                {
-                    NavMeshCheckpointNode next = nextNodes[j];
-                    if (next == null)
-                        continue;
-                    if (!indexByNode.TryGetValue(next, out int v))
-                        continue;
-
-                    float edgeCost = GetPathDistance(sampled[u], sampled[v], pathToCheckpointBuffer);
-                    if (!IsFinitePathDistance(edgeCost))
-                        continue;
-
-                    float alt = dist[u] + edgeCost;
-                    if (alt < dist[v])
-                    {
-                        dist[v] = alt;
-                        prev[v] = u;
-                    }
-                }
-            }
-
-            int bestGoal = -1;
-            float bestTotal = float.PositiveInfinity;
-            for (int i = 0; i < n; i++)
-            {
-                if (!IsFinitePathDistance(dist[i]) || !IsFinitePathDistance(goalCost[i]))
-                    continue;
-
-                float total = dist[i] + goalCost[i];
-                if (total < bestTotal)
-                {
-                    bestTotal = total;
-                    bestGoal = i;
-                }
-            }
-
-            if (bestGoal < 0)
-                return false;
-
-            if (checkpointRoutingMode == CheckpointRoutingMode.AssistIfBetter &&
-                IsFinitePathDistance(directPathDistance) &&
-                bestTotal >= directPathDistance - Mathf.Max(0f, checkpointMinBenefitDistance))
-            {
-                return false;
-            }
-
-            var routeIndices = new List<int>(n);
-            int current = bestGoal;
-            while (current >= 0)
-            {
-                routeIndices.Add(current);
-                current = prev[current];
-            }
-            routeIndices.Reverse();
-
-            if (routeIndices.Count == 0)
-                return false;
-
-            if (routeIndices.Count == 1 && IsPositionReached(sampled[routeIndices[0]]))
-                return false;
-
-            activeCheckpointRoute.Clear();
-            for (int i = 0; i < routeIndices.Count; i++)
-                activeCheckpointRoute.Add(validNodes[routeIndices[i]]);
-
-            activeRouteIndex = 0;
-            LogAi("ROUTE", $"Route built ({activeCheckpointRoute.Count} nodes): {FormatNodeList(activeCheckpointRoute)}");
-            return true;
-        }
-
-        private NavMeshCheckpointNode[] GetCheckpointNodes()
-        {
             if (checkpointNodeTransforms != null && checkpointNodeTransforms.Length > 0)
             {
-                var resolved = new List<NavMeshCheckpointNode>(checkpointNodeTransforms.Length);
                 for (int i = 0; i < checkpointNodeTransforms.Length; i++)
                 {
-                    Transform t = checkpointNodeTransforms[i];
-                    if (t == null)
+                    Transform current = checkpointNodeTransforms[i];
+                    if (current == null)
                         continue;
 
-                    NavMeshCheckpointNode node = t.GetComponent<NavMeshCheckpointNode>();
-                    if (node == null)
+                    NavMeshCheckpointNode node = current.GetComponent<NavMeshCheckpointNode>();
+                    if (node == null || output.Contains(node))
                         continue;
 
-                    if (!resolved.Contains(node))
-                        resolved.Add(node);
+                    output.Add(node);
                 }
 
-                if (resolved.Count > 0)
-                    return resolved.ToArray();
+                if (output.Count > 0)
+                    return;
             }
 
             if (!autoFindCheckpointNodesIfEmpty)
-                return null;
+                return;
 
+            cachedCheckpointNodes = FindObjectsOfType<NavMeshCheckpointNode>();
             if (cachedCheckpointNodes == null || cachedCheckpointNodes.Length == 0)
-                cachedCheckpointNodes = FindObjectsOfType<NavMeshCheckpointNode>();
-
-            return cachedCheckpointNodes;
-        }
-
-        private bool TryGetCurrentRouteDestination(out Vector3 destination)
-        {
-            destination = Vector3.zero;
-            if (!HasActiveRoute)
-                return false;
-
-            NavMeshCheckpointNode node = activeCheckpointRoute[activeRouteIndex];
-            if (node == null)
-                return false;
-
-            return TrySampleOnNavMesh(node.transform.position, out destination);
-        }
-
-        private void AdvanceRouteIfReached()
-        {
-            if (!HasActiveRoute)
                 return;
 
-            while (HasActiveRoute)
+            for (int i = 0; i < cachedCheckpointNodes.Length; i++)
             {
-                NavMeshCheckpointNode node = activeCheckpointRoute[activeRouteIndex];
-                if (node == null)
-                {
-                    ClearCheckpointState();
-                    return;
-                }
-
-                if (!TrySampleOnNavMesh(node.transform.position, out Vector3 checkpointPos))
-                {
-                    ClearCheckpointState();
-                    return;
-                }
-
-                if (!IsPositionReached(checkpointPos))
-                    return;
-
-                activeRouteIndex++;
-                if (activeRouteIndex >= activeCheckpointRoute.Count)
-                {
-                    ClearCheckpointState();
-                    return;
-                }
+                NavMeshCheckpointNode node = cachedCheckpointNodes[i];
+                if (node != null && !output.Contains(node))
+                    output.Add(node);
             }
         }
 
-        private bool IsPositionReached(Vector3 position)
+        private bool IsTargetVisible(Transform targetTransform, Vector3 aimPoint, float distanceToTarget)
         {
-            Vector3 delta = position - transform.position;
-            float scaledReachDistance = checkpointReachDistance * Mathf.Clamp(checkpointReachDistanceScale, 0.1f, 1f);
-            float reachDistance = Mathf.Max(0.1f, scaledReachDistance);
-            return delta.sqrMagnitude <= reachDistance * reachDistance;
-        }
+            if (targetTransform == null)
+                return false;
 
-        private bool TrySampleOnNavMesh(Vector3 sourcePosition, out Vector3 sampledPosition)
-        {
-            if (NavMesh.SamplePosition(sourcePosition, out NavMeshHit hit, Mathf.Max(0.5f, checkpointSampleRadius), NavMesh.AllAreas))
+            if (distanceToTarget > Mathf.Max(0.1f, targetDetectionRange))
+                return false;
+
+            if (visionConeAngle < 179f)
             {
-                sampledPosition = hit.position;
+                Vector3 forward = invertBodyForward ? -transform.forward : transform.forward;
+                forward.y = 0f;
+
+                Vector3 toTarget = targetTransform.position - transform.position;
+                toTarget.y = 0f;
+
+                if (forward.sqrMagnitude > 0.01f && toTarget.sqrMagnitude > 0.01f)
+                {
+                    float angle = Vector3.Angle(forward.normalized, toTarget.normalized);
+                    if (angle > visionConeAngle * 0.5f)
+                        return false;
+                }
+            }
+
+            if (!requireLineOfSight)
                 return true;
-            }
 
-            sampledPosition = Vector3.zero;
-            return false;
+            return HasLineOfSight(targetTransform, aimPoint);
         }
 
-        private float GetPathDistance(Vector3 from, Vector3 to, NavMeshPath pathBuffer)
+        private bool HasLineOfSight(Transform targetTransform, Vector3 aimPoint)
         {
-            if (pathBuffer == null)
-                return float.PositiveInfinity;
+            Vector3 lowPoint = targetTransform.position + Vector3.up * Mathf.Max(0.2f, targetAimHeightOffset * 0.5f);
+            Vector3 midPoint = aimPoint;
+            Vector3 highPoint = targetTransform.position + Vector3.up * (targetAimHeightOffset + 1.2f);
 
-            if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, pathBuffer) || pathBuffer.status != NavMeshPathStatus.PathComplete)
-                return float.PositiveInfinity;
-
-            if (pathBuffer.corners == null || pathBuffer.corners.Length < 2)
-                return Vector3.Distance(from, to);
-
-            float distance = 0f;
-            for (int i = 1; i < pathBuffer.corners.Length; i++)
-                distance += Vector3.Distance(pathBuffer.corners[i - 1], pathBuffer.corners[i]);
-
-            return distance;
+            return HasLineOfSightToPoint(targetTransform, lowPoint) ||
+                   HasLineOfSightToPoint(targetTransform, midPoint) ||
+                   HasLineOfSightToPoint(targetTransform, highPoint);
         }
 
-        private float GetEffectiveDistanceToTarget(float fallbackPlanarDistance)
+        private bool HasLineOfSightToPoint(Transform targetTransform, Vector3 point)
         {
-            if (target == null || !useNavMeshCheckpoints)
-                return fallbackPlanarDistance;
+            Transform fireOrigin = weapon != null && weapon.FirePoint != null ? weapon.FirePoint : transform;
+            Vector3 origin = fireOrigin.position;
+            Vector3 direction = point - origin;
+            float distance = direction.magnitude;
+            if (distance <= 0.1f)
+                return true;
 
-            if (Time.time < nextTargetPathDistanceUpdateTime && IsFinitePathDistance(cachedTargetPathDistance))
-                return cachedTargetPathDistance;
+            direction /= distance;
 
-            nextTargetPathDistanceUpdateTime = Time.time + Mathf.Max(0.05f, repathInterval);
+            Ray ray = new Ray(origin + direction * 0.25f, direction);
+            int hitCount = Physics.RaycastNonAlloc(ray, lineOfSightHits, distance, lineOfSightMask, QueryTriggerInteraction.Ignore);
+            if (hitCount <= 0)
+                return true;
 
-            if (!TrySampleOnNavMesh(transform.position, out Vector3 selfOnMesh) ||
-                !TrySampleOnNavMesh(target.position, out Vector3 targetOnMesh))
+            float nearestDistance = float.PositiveInfinity;
+            Transform nearestHit = null;
+
+            for (int i = 0; i < hitCount; i++)
             {
-                cachedTargetPathDistance = fallbackPlanarDistance;
-                return cachedTargetPathDistance;
+                Transform hitTransform = lineOfSightHits[i].transform;
+                if (hitTransform == null)
+                    continue;
+                if (hitTransform == transform || hitTransform.IsChildOf(transform))
+                    continue;
+
+                float hitDistance = lineOfSightHits[i].distance;
+                if (hitDistance < nearestDistance)
+                {
+                    nearestDistance = hitDistance;
+                    nearestHit = hitTransform;
+                }
             }
 
-            float pathDistance = GetPathDistance(selfOnMesh, targetOnMesh, directPathBuffer);
-            cachedTargetPathDistance = IsFinitePathDistance(pathDistance) ? pathDistance : fallbackPlanarDistance;
-            return cachedTargetPathDistance;
-        }
+            if (nearestHit == null)
+                return true;
 
-        private static bool IsFinitePathDistance(float distance)
-        {
-            return !(float.IsInfinity(distance) || float.IsNaN(distance));
-        }
-
-        private void BlockNodeTemporarily(NavMeshCheckpointNode node)
-        {
-            if (node == null)
-                return;
-
-            float untilTime = Time.time + Mathf.Max(0.5f, blockedNodeDuration);
-            blockedNodesUntilTime[node] = untilTime;
-        }
-
-        private bool IsNodeBlocked(NavMeshCheckpointNode node)
-        {
-            if (node == null)
-                return false;
-
-            if (!blockedNodesUntilTime.TryGetValue(node, out float untilTime))
-                return false;
-
-            return Time.time < untilTime;
-        }
-
-        private void PurgeExpiredBlockedNodes()
-        {
-            if (blockedNodesUntilTime.Count == 0)
-                return;
-
-            float now = Time.time;
-            var toRemove = new List<NavMeshCheckpointNode>(blockedNodesUntilTime.Count);
-            foreach (var pair in blockedNodesUntilTime)
-            {
-                if (pair.Key == null || now >= pair.Value)
-                    toRemove.Add(pair.Key);
-            }
-
-            for (int i = 0; i < toRemove.Count; i++)
-                blockedNodesUntilTime.Remove(toRemove[i]);
-        }
-
-        private void ClearCheckpointState()
-        {
-            activeCheckpointRoute.Clear();
-            activeRouteIndex = -1;
-            nextCheckpointReevaluateTime = 0f;
-            ResetLoopCheck();
-        }
-
-        private void ClearPatrolState()
-        {
-            patrolRoute.Clear();
-            patrolRouteIndex = -1;
-            patrolRouteDirection = 1;
-            waitingPatrolAfterNearestCheckpoint = false;
-            consecutiveAlternativeRouteFailures = 0;
-            ResetLoopCheck();
-        }
-
-        private void ResetLoopCheck()
-        {
-            loopCheckActive = false;
-            loopCheckStartTime = 0f;
-            observedRouteIndex = -1;
-            observedRouteStartDistance = 0f;
-            observedRouteBestDistance = 0f;
-        }
-
-        private Vector3 GetSeparationFromOtherBots()
-        {
-            if (minDistanceToOtherBots <= 0f) return Vector3.zero;
-            var all = TankRuntime.GetAllTanks();
-            Vector3 sum = Vector3.zero;
-            int count = 0;
-            Vector3 myPos = transform.position;
-            myPos.y = 0f;
-            for (int i = 0; i < all.Count; i++)
-            {
-                var t = all[i];
-                if (t == null || t == tankController || t.IsLocalPlayer) continue;
-                var h = t.GetComponent<TankHealth>();
-                if (h != null && !h.IsAlive()) continue;
-                Vector3 otherPos = t.transform.position;
-                otherPos.y = 0f;
-                float d = Vector3.Distance(myPos, otherPos);
-                if (d < 0.01f || d > minDistanceToOtherBots) continue;
-                Vector3 away = (myPos - otherPos).normalized;
-                float strength = 1f - (d / minDistanceToOtherBots);
-                sum += away * strength;
-                count++;
-            }
-            if (count == 0) return Vector3.zero;
-            return sum.normalized;
-        }
-
-        private float GetDistanceToNearestOtherBot()
-        {
-            if (minDistanceToOtherBots <= 0f) return -1f;
-            var all = TankRuntime.GetAllTanks();
-            float minSq = float.MaxValue;
-            Vector3 myPos = transform.position;
-            myPos.y = 0f;
-            for (int i = 0; i < all.Count; i++)
-            {
-                var t = all[i];
-                if (t == null || t == tankController || t.IsLocalPlayer) continue;
-                var h = t.GetComponent<TankHealth>();
-                if (h != null && !h.IsAlive()) continue;
-                Vector3 otherPos = t.transform.position;
-                otherPos.y = 0f;
-                float sq = (otherPos - myPos).sqrMagnitude;
-                if (sq < minSq) minSq = sq;
-            }
-            return minSq < float.MaxValue ? Mathf.Sqrt(minSq) : -1f;
-        }
-
-        private void TryFireAtTarget(float distanceToTarget, Vector3 aimPoint, bool hasLineOfSight)
-        {
-            TankWeapon activeWeapon = GetActiveWeapon();
-            if (activeWeapon == null || turret == null)
-                return;
-
-            if (distanceToTarget > fireRange)
-                return;
-
-            if (requireTurretAlignmentForFire && !turret.IsFirePointAligned)
-                return;
-
-            if (requireLineOfSight && !hasLineOfSight)
-                return;
-
-            if (tankController != null)
-            {
-                TankInputCommand fireCommand = new TankInputCommand(
-                    0f,
-                    0f,
-                    Vector2.zero,
-                    true,
-                    true,
-                    false,
-                    false,
-                    0,
-                    true,
-                    true,
-                    false,
-                    0,
-                    true,
-                    aimPoint,
-                    0f
-                );
-
-                tankController.ProcessCommand(fireCommand);
-                return;
-            }
-
-            if (!activeWeapon.CanFire)
-                return;
-
-            float stability = turret.GetFireStability();
-            activeWeapon.Fire(stability);
-            turret.ResetStability();
-        }
-
-        private void TryReloadIfNeeded()
-        {
-            TankWeapon activeWeapon = GetActiveWeapon();
-            if (activeWeapon == null)
-                return;
-
-            if (!activeWeapon.IsReloading && activeWeapon.CurrentAmmoInMagazine <= 0 && activeWeapon.ReserveAmmo > 0)
-                activeWeapon.TryReload();
+            return nearestHit.root == targetTransform.root;
         }
 
         private void UpdateCombatWeapon(float distanceToTarget)
@@ -1399,19 +630,20 @@ namespace TankGame.Tank.AI
             if (!enableWeaponSwitching || tankController == null || Time.time < nextWeaponSwitchTime)
                 return;
 
-            WeaponType desiredWeapon =
-                distanceToTarget <= machineGunPreferredRange ? WeaponType.MachineGun : WeaponType.Cannon;
+            WeaponType desiredType = distanceToTarget <= machineGunPreferredRange
+                ? WeaponType.MachineGun
+                : WeaponType.Cannon;
 
-            if (tankController.ActiveWeaponType == desiredWeapon)
+            if (tankController.ActiveWeaponType == desiredType)
                 return;
 
-            if (desiredWeapon == WeaponType.MachineGun && tankController.MachineGunWeapon == null)
+            if (desiredType == WeaponType.MachineGun && tankController.MachineGunWeapon == null)
                 return;
 
-            if (desiredWeapon == WeaponType.Cannon && tankController.CannonWeapon == null)
+            if (desiredType == WeaponType.Cannon && tankController.CannonWeapon == null)
                 return;
 
-            tankController.SwitchWeapon(desiredWeapon);
+            tankController.SwitchWeapon(desiredType);
             weapon = tankController.Weapon;
             nextWeaponSwitchTime = Time.time + Mathf.Max(0.05f, weaponSwitchCooldown);
         }
@@ -1424,57 +656,55 @@ namespace TankGame.Tank.AI
             return weapon;
         }
 
-        private bool HasLineOfSight(Vector3 aimPoint)
+        private bool ShouldReload(TankWeapon activeWeapon)
         {
-            if (target == null)
+            if (activeWeapon == null)
                 return false;
 
-            Vector3 lowPoint = target.position + Vector3.up * Mathf.Max(0.2f, targetAimHeightOffset * 0.5f);
-            Vector3 midPoint = aimPoint;
-            Vector3 highPoint = target.position + Vector3.up * (targetAimHeightOffset + 1.2f);
-
-            return HasLineOfSightToPoint(lowPoint) ||
-                   HasLineOfSightToPoint(midPoint) ||
-                   HasLineOfSightToPoint(highPoint);
+            return !activeWeapon.IsReloading &&
+                   activeWeapon.CurrentAmmoInMagazine <= 0 &&
+                   activeWeapon.ReserveAmmo > 0;
         }
 
-        private bool HasLineOfSightToPoint(Vector3 point)
+        private void SendCommand(
+            float verticalInput,
+            float horizontalInput,
+            bool isAiming,
+            Vector3 aimPoint,
+            bool isFiring,
+            bool requestReload)
         {
-            Transform originTransform = weapon != null && weapon.FirePoint != null ? weapon.FirePoint : transform;
-            Vector3 origin = originTransform.position;
-            Vector3 direction = point - origin;
-            float distance = direction.magnitude;
-            if (distance <= 0.1f)
-                return true;
+            bool hasAimPoint = isAiming;
+            TankInputCommand command = new TankInputCommand(
+                verticalInput,
+                horizontalInput,
+                Vector2.zero,
+                isAiming,
+                isFiring,
+                requestReload,
+                false,
+                0,
+                isFiring,
+                isFiring,
+                false,
+                0,
+                hasAimPoint,
+                aimPoint,
+                0f
+            );
 
-            direction /= distance;
-            Ray ray = new Ray(origin + direction * 0.25f, direction);
-            int hitCount = Physics.RaycastNonAlloc(ray, lineOfSightHits, distance, lineOfSightMask, QueryTriggerInteraction.Ignore);
-            if (hitCount <= 0)
-                return true;
-
-            float nearestDistance = float.PositiveInfinity;
-            Transform nearestHitTransform = null;
-            for (int i = 0; i < hitCount; i++)
+            if (tankController != null)
             {
-                RaycastHit hit = lineOfSightHits[i];
-                Transform hitTransform = hit.transform;
-                if (hitTransform == null)
-                    continue;
-                if (hitTransform == transform || hitTransform.IsChildOf(transform))
-                    continue;
-
-                if (hit.distance < nearestDistance)
-                {
-                    nearestDistance = hit.distance;
-                    nearestHitTransform = hitTransform;
-                }
+                tankController.ApplyExternalCommand(command);
+                return;
             }
 
-            if (nearestHitTransform == null)
-                return true;
+            movement?.ApplyMovement(verticalInput, horizontalInput, false);
+        }
 
-            return nearestHitTransform == target || nearestHitTransform.IsChildOf(target);
+        private void SendIdleCommand()
+        {
+            SendCommand(0f, 0f, false, Vector3.zero, false, false);
         }
 
         private Vector3 GetTargetAimPoint(Transform targetTransform)
@@ -1491,66 +721,13 @@ namespace TankGame.Tank.AI
             return Vector3.Distance(a, b);
         }
 
-        private void SetNoLineOfSightHoldState()
+        private void LogStateChange(TankAIState state)
         {
-            if (!IsPatrolling)
-            {
-                if (noSightIdleStartTime <= 0f)
-                {
-                    noSightIdleStartTime = Time.time;
-                }
-                else if ((Time.time - noSightIdleStartTime) >= Mathf.Max(0.1f, idleBeforePatrolDelay) &&
-                         TryStartPatrolFromNearestNodes())
-                {
-                    noSightIdleStartTime = float.NegativeInfinity;
-                    farIdleStartTime = float.NegativeInfinity;
-                    LogAi("PATROL", "Started patrol from NoLineOfSight idle.");
-                    return;
-                }
-            }
-
-            currentVerticalInput = 0f;
-            currentHorizontalInput = 0f;
-
-            if (agent != null && agent.isOnNavMesh && agent.hasPath)
-                agent.ResetPath();
-
-            lastDestinationMode = DestinationMode.None;
-            currentDestinationMode = DestinationMode.None;
-            nextDestinationModeLogTime = 0f;
-            farIdleStartTime = float.NegativeInfinity;
-            noSightIdleStartTime = float.NegativeInfinity;
-
-            if (lastIdleReason != "NoLineOfSight")
-            {
-                lastIdleReason = "NoLineOfSight";
-                LogAi("IDLE", "Hold due to NoLineOfSight (route preserved).");
-            }
-
-            turret?.ClearAimPoint();
-            TankWeapon activeWeapon = GetActiveWeapon();
-            activeWeapon?.ClearAimPoint();
-
-            if (turret != null && turret.IsAiming)
-                turret.StopAiming();
-            turret?.ReturnToIdleRotation();
-        }
-
-        private void LogDestinationMode(DestinationMode mode, Vector3 destination, float stoppingDistance)
-        {
-            if (!enableAiDebugLogs)
+            if (!enableAiDebugLogs || state == lastLoggedState)
                 return;
 
-            bool modeChanged = mode != lastDestinationMode;
-            bool cooldownPassed = Time.time >= nextDestinationModeLogTime;
-            if (!modeChanged && !cooldownPassed)
-                return;
-
-            nextDestinationModeLogTime = Time.time + Mathf.Max(0.1f, destinationModeLogCooldown);
-            if (modeChanged)
-                lastDestinationMode = mode;
-
-            LogAi("DEST", $"Mode={mode}, stop={stoppingDistance:F2}, destination=({destination.x:F1},{destination.y:F1},{destination.z:F1})");
+            lastLoggedState = state;
+            LogAi("STATE", $"Switched to {state}");
         }
 
         private void LogAi(string tag, string message)
@@ -1559,54 +736,6 @@ namespace TankGame.Tank.AI
                 return;
 
             Debug.Log($"[NavMeshTankAI][{name}][{tag}] {message}", this);
-        }
-
-        private static string FormatNodeList(List<NavMeshCheckpointNode> nodes)
-        {
-            if (nodes == null || nodes.Count == 0)
-                return "<empty>";
-
-            var parts = new List<string>(nodes.Count);
-            for (int i = 0; i < nodes.Count; i++)
-                parts.Add(GetNodeName(nodes[i]));
-
-            return string.Join(" -> ", parts);
-        }
-
-        private static string GetNodeName(NavMeshCheckpointNode node)
-        {
-            return node != null ? node.name : "<null>";
-        }
-
-        private void SetIdleState(string reason = null)
-        {
-            currentVerticalInput = 0f;
-            currentHorizontalInput = 0f;
-
-            if (agent != null && agent.isOnNavMesh && agent.hasPath)
-                agent.ResetPath();
-
-            ClearCheckpointState();
-            ClearPatrolState();
-            lastDestinationMode = DestinationMode.None;
-            currentDestinationMode = DestinationMode.None;
-            nextDestinationModeLogTime = 0f;
-            farIdleStartTime = float.NegativeInfinity;
-            noSightIdleStartTime = float.NegativeInfinity;
-
-            if (!string.IsNullOrEmpty(reason) && reason != lastIdleReason)
-            {
-                lastIdleReason = reason;
-                LogAi("IDLE", $"Enter idle: {reason}");
-            }
-
-            turret?.ClearAimPoint();
-            TankWeapon activeWeapon = GetActiveWeapon();
-            activeWeapon?.ClearAimPoint();
-
-            if (turret != null && turret.IsAiming)
-                turret.StopAiming();
-            turret?.ReturnToIdleRotation();
         }
     }
 }

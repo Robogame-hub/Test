@@ -236,6 +236,18 @@ namespace TankGame.Tank
             ProcessCommand(command);
         }
 
+        /// <summary>
+        /// Pushes command from non-player systems (AI/server replay) into the same simulation pipeline.
+        /// </summary>
+        public void ApplyExternalCommand(TankInputCommand command, bool replicateWhenPredicted = false)
+        {
+            cachedInput = command;
+            ProcessCommand(command);
+
+            if (replicateWhenPredicted && authorityMode == AuthorityMode.NetworkOwnerPredicted)
+                networkAdapter?.SendInput(this, command);
+        }
+
         public void ProcessCommand(TankInputCommand command)
         {
             ApplyAimData(command);
