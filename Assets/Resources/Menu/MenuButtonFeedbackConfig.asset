@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18bf4d95f4a74b1692ec57d79139db8e, type: 3}
   m_Name: MenuButtonFeedbackConfig
   m_EditorClassIdentifier: 
-  normalTextColor: {r: 0.05882353, g: 0.9529412, b: 0, a: 1}
-  hoverTextColor: {r: 1, g: 0, b: 0, a: 1}
-  pressedTextColor: {r: 1, g: 1, b: 1, a: 1}
+  normalTextColor: {r: 0.9607843, g: 0.85882354, b: 0.6666667, a: 1}
+  hoverTextColor: {r: 1, g: 0.7372549, b: 0.36862746, a: 1}
+  pressedTextColor: {r: 1, g: 0.95686275, b: 0.8745098, a: 1}
   hoverSound: {fileID: 8300000, guid: c5230b845c1250e4fb641b743c1cbac7, type: 3}
   clickSound: {fileID: 8300000, guid: cd8b9f8ffad0cc64ea147215e28c6257, type: 3}
   hoverTextScale: 1.08

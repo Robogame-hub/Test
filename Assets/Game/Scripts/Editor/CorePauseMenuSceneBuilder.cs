@@ -15,10 +15,10 @@ namespace TankGame.Editor
         private const string CanvasName = "UIManager";
         private const string PauseRootName = "PauseUIRoot";
 
-        private static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.88f);
-        private static readonly Color ButtonColor = new Color(0f, 0f, 0f, 0.74f);
-        private static readonly Color AccentColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
-        private static readonly Color SliderBackground = new Color(0.08f, 0.08f, 0.08f, 1f);
+        private static readonly Color PanelColor = new Color(0.13f, 0.08f, 0.05f, 0.86f);
+        private static readonly Color ButtonColor = new Color(0.27f, 0.17f, 0.1f, 0.9f);
+        private static readonly Color AccentColor = new Color(0.96f, 0.86f, 0.67f, 1f);
+        private static readonly Color SliderBackground = new Color(0.19f, 0.12f, 0.07f, 1f);
 
         [MenuItem("TankGame/Scenes/Create Core Pause Menu Panel")]
         public static void CreateCorePauseMenuPanel()

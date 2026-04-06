@@ -15,11 +15,11 @@ namespace TankGame.Menu
 
         [Header("Text Colors")]
         [Tooltip("Базовый цвет текста.")]
-        public Color normalTextColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        public Color normalTextColor = new Color(0.96f, 0.86f, 0.67f, 1f);
         [Tooltip("Цвет текста при наведении.")]
-        public Color hoverTextColor = Color.red;
+        public Color hoverTextColor = new Color(1f, 0.74f, 0.37f, 1f);
         [Tooltip("Цвет текста при нажатии.")]
-        public Color pressedTextColor = Color.white;
+        public Color pressedTextColor = new Color(1f, 0.96f, 0.87f, 1f);
 
         [Header("Scale")]
         [Tooltip("Масштаб текста при наведении.")]

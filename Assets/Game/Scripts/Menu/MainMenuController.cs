@@ -109,6 +109,7 @@ namespace TankGame.Menu
             HideUnsupportedSensitivityControls();
             InitSandboxMatchPanel();
             ShowMainPanel();
+            MenuDesertTheme.ApplyScene(SceneManager.GetActiveScene());
         }
 
         private void OnDestroy()
@@ -600,19 +601,19 @@ namespace TankGame.Menu
         private Color GetButtonNormalColor()
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
-            return cfg != null ? cfg.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+            return cfg != null ? cfg.normalTextColor : new Color(0.96f, 0.86f, 0.67f, 1f);
         }
 
         private Color GetButtonHoverColor()
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
-            return cfg != null ? cfg.hoverTextColor : Color.red;
+            return cfg != null ? cfg.hoverTextColor : new Color(1f, 0.74f, 0.37f, 1f);
         }
 
         private Color GetButtonPressedColor()
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
-            return cfg != null ? cfg.pressedTextColor : Color.white;
+            return cfg != null ? cfg.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
         }
 
         private float GetButtonHoverScale()

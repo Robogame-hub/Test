@@ -26,7 +26,7 @@ namespace TankGame.Menu
         [Tooltip("Цвет фоновых палочек.")]
         public Color backgroundColor = new Color(0.9f, 0.15f, 0.15f, 0.55f);
         [Tooltip("Цвет активных палочек.")]
-        public Color fillColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        public Color fillColor = new Color(1f, 0.67f, 0.25f, 0.96f);
 
         private readonly List<Image> backgroundSegments = new List<Image>();
         private readonly List<Image> fillSegments = new List<Image>();

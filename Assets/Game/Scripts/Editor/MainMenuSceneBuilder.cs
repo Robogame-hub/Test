@@ -13,9 +13,9 @@ namespace TankGame.EditorTools
 {
     public static class MainMenuSceneBuilder
     {
-        private static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.45f);
-        private static readonly Color ButtonColor = new Color(0f, 0f, 0f, 0.65f);
-        private static readonly Color TextGreen = new Color32(0x0F, 0xF3, 0x00, 0xFF);
+        private static readonly Color PanelColor = new Color(0.13f, 0.08f, 0.05f, 0.76f);
+        private static readonly Color ButtonColor = new Color(0.27f, 0.17f, 0.10f, 0.88f);
+        private static readonly Color TextGreen = new Color(0.96f, 0.86f, 0.67f, 1f);
 
         [MenuItem("TankGame/Scenes/Create MainMenu + Lobby")]
         public static void CreateMainAndLobbyScenes()
@@ -423,8 +423,8 @@ namespace TankGame.EditorTools
             statBar.segmentTemplate = segmentTemplate;
             statBar.valueText = valueText;
             statBar.segmentCount = 10;
-            statBar.backgroundColor = new Color(0.88f, 0.16f, 0.16f, 0.55f);
-            statBar.fillColor = TextGreen;
+            statBar.backgroundColor = new Color(0.62f, 0.24f, 0.12f, 0.5f);
+            statBar.fillColor = new Color(1f, 0.67f, 0.25f, 0.96f);
             return statBar;
         }
 
@@ -478,7 +478,7 @@ namespace TankGame.EditorTools
             cam.tag = "MainCamera";
             Camera camera = cam.GetComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.06f, 0.08f, 0.1f, 1f);
+            camera.backgroundColor = new Color(0.24f, 0.18f, 0.12f, 1f);
             camera.orthographic = true;
             camera.orthographicSize = 5f;
             cam.transform.position = new Vector3(0f, 0f, -10f);

@@ -62,6 +62,7 @@ namespace TankGame.Menu
             }
 
             RefreshRooms();
+            MenuDesertTheme.ApplyScene(SceneManager.GetActiveScene());
         }
 
         private void OnDestroy()
@@ -105,6 +106,7 @@ namespace TankGame.Menu
                 string roomName = roomNames[i];
                 GameObject row = Instantiate(roomEntryPrefab, roomListContainer);
                 row.SetActive(true);
+                MenuDesertTheme.ApplyRoomEntry(row);
                 TMP_Text[] texts = row.GetComponentsInChildren<TMP_Text>(true);
                 TMP_FontAsset configuredFont = GetConfiguredUiFont();
                 if (texts.Length > 0)
@@ -177,17 +179,17 @@ namespace TankGame.Menu
 
         private Color GetButtonNormalColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color(0.96f, 0.86f, 0.67f, 1f);
         }
 
         private Color GetButtonHoverColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : Color.red;
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : new Color(1f, 0.74f, 0.37f, 1f);
         }
 
         private Color GetButtonPressedColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : Color.white;
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
         }
 
         private float GetButtonHoverScale()

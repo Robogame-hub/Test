@@ -138,17 +138,17 @@ namespace TankGame.Menu
 
         private Color GetButtonNormalColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF);
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalTextColor : new Color(0.96f, 0.86f, 0.67f, 1f);
         }
 
         private Color GetButtonHoverColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : Color.red;
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverTextColor : new Color(1f, 0.74f, 0.37f, 1f);
         }
 
         private Color GetButtonPressedColor()
         {
-            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : Color.white;
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
         }
 
         private float GetButtonHoverScale()
@@ -226,7 +226,7 @@ namespace TankGame.Menu
             segmentLayout.minWidth = 8f;
             segmentLayout.preferredWidth = 8f;
             Image segmentTemplate = segmentTemplateObj.GetComponent<Image>();
-            segmentTemplate.color = Color.white;
+            segmentTemplate.color = new Color(1f, 0.67f, 0.25f, 0.96f);
             segmentTemplateObj.SetActive(false);
 
             TMP_Text valueText = row.Find("Value") != null ? row.Find("Value").GetComponent<TMP_Text>() : null;
@@ -239,7 +239,7 @@ namespace TankGame.Menu
                 tmp.fontSize = 20f;
                 tmp.alignment = TextAlignmentOptions.Right;
                 TMP_Text rowLabel = row.GetComponentInChildren<TMP_Text>(true);
-                tmp.color = rowLabel != null ? rowLabel.color : Color.white;
+                tmp.color = rowLabel != null ? rowLabel.color : new Color(0.96f, 0.86f, 0.67f, 1f);
                 LayoutElement valueLayout = valueObj.GetComponent<LayoutElement>();
                 valueLayout.minWidth = 52f;
                 valueLayout.preferredWidth = 52f;
@@ -253,7 +253,7 @@ namespace TankGame.Menu
             statBar.valueText = valueText;
             statBar.segmentCount = 10;
             statBar.backgroundColor = new Color(0.88f, 0.16f, 0.16f, 0.55f);
-            statBar.fillColor = new Color32(0x0F, 0xF3, 0x00, 0xFF);
+            statBar.fillColor = new Color(1f, 0.67f, 0.25f, 0.96f);
             EnsureStatRowHoverFeedback(row);
             return statBar;
         }

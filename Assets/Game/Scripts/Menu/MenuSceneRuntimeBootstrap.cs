@@ -43,6 +43,7 @@ namespace TankGame.Menu
                 return;
 
             ApplyConfiguredUIFontToAllUi();
+            MenuDesertTheme.ApplyScene(scene);
 
             if (scene.name == CoreSceneName)
             {
@@ -224,9 +225,9 @@ namespace TankGame.Menu
             feedback.button = button;
             feedback.targetText = go.GetComponentInChildren<TMP_Text>(true);
             feedback.Configure(
-                config != null ? config.normalTextColor : new Color32(0x0F, 0xF3, 0x00, 0xFF),
-                config != null ? config.hoverTextColor : Color.red,
-                config != null ? config.pressedTextColor : Color.white,
+                config != null ? config.normalTextColor : new Color(0.96f, 0.86f, 0.67f, 1f),
+                config != null ? config.hoverTextColor : new Color(1f, 0.74f, 0.37f, 1f),
+                config != null ? config.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f),
                 config != null ? Mathf.Max(1f, config.hoverTextScale) : 1.08f,
                 config != null ? Mathf.Max(1f, config.scaleLerpSpeed) : 16f,
                 audioSource,

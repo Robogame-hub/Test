@@ -136,3 +136,21 @@ I should read this first before making changes.
     - Removed planner-side auto destination override on timeout for checkpoint-graph mode (checkpoint is no longer reselected repeatedly while standing on previous node).
     - Kept checkpoint switches only on true reach/explicit skip, reducing back-forward oscillation.
     - Added stuck-recovery cooldown and heading-error guard to avoid false stuck triggers while bot is legitimately rotating toward path direction.
+  - Audited current menu UI architecture before visual redesign (do not break logic):
+    - Main menu scene is structured around `MainMenuCanvas` with `LeftPanel` (`PlayButton`, `SandboxButton`, `SettingsButton`, `ExitButton`), sibling panels `SettingsPanel` and `SandboxMatchPanel`, plus `RightPanel -> TankPanel` (`TankSelectionController`, preview, segmented stats).
+    - Lobby scene is structured around `LobbyCanvas -> LobbyRoot` with `NicknameInput`, `RoomList/Viewport/Content`, `RoomEntryTemplate`, and controls `RefreshButton`, `CreateButton`, `BackButton`.
+    - Core scene pause UI exists as `UIManager -> PauseUIRoot` with `PauseMenuPanel`, `PauseSettingsPanel`, and managed by `BattlePauseMenuController`.
+    - Visual colors are currently mostly dark + neon green from builders/config (`MainMenuSceneBuilder`, `CorePauseMenuSceneBuilder`, `MenuButtonFeedbackConfig.asset`), while flow logic is centralized in `MainMenuController`, `LobbyController`, `BattlePauseMenuController`, and `MenuSceneRuntimeBootstrap`.
+    - Safety rule for redesign: keep scene object names and controller bindings unchanged; apply styling/layout tuning as a separate visual layer.
+  - Implemented non-breaking desert UI/UX visual layer for menu scenes:
+    - Added `Assets/Game/Scripts/Menu/MenuDesertTheme.cs` and connected it via `MenuSceneRuntimeBootstrap` plus explicit calls from `MainMenuController`, `LobbyController`, and `BattlePauseMenuController`.
+    - Theme now restyles MainMenu/Lobby/Core pause menus at runtime (panels, buttons, sliders, text hierarchy, stat bars, room entries) with a warm desert palette and readable contrast over 3D background scenes.
+    - Added responsive anchor tuning for key menu panels (desktop/portrait) so UI keeps playfield/background visibility.
+    - Updated feedback/color defaults from neon-green style to desert tones in:
+      - `MenuButtonFeedbackConfig.cs`
+      - `MenuButtonFeedback.cs`
+      - `MenuButtonFeedbackConfig.asset`
+      - fallback colors in menu controllers and bootstrap wiring.
+    - Updated scene builder color defaults for future scene regeneration:
+      - `MainMenuSceneBuilder.cs`
+      - `CorePauseMenuSceneBuilder.cs`.
