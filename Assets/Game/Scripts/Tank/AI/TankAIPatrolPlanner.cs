@@ -19,14 +19,21 @@ namespace TankGame.Tank.AI
 
         private readonly List<Vector3> patrolPoints = new List<Vector3>(32);
         private readonly NavMeshPath pathBuffer = new NavMeshPath();
+        private readonly List<int> neighborOrderBuffer = new List<int>(8);
 
         private int currentIndex;
         private float bestDistanceToCurrentPoint = float.PositiveInfinity;
         private float lastProgressTime;
         private bool hasProgressWindow;
+        private int routeVariantSeed;
 
         public int PatrolPointCount => patrolPoints.Count;
         public bool HasRoute => patrolPoints.Count > 0;
+
+        public void SetRouteVariantSeed(int seed)
+        {
+            routeVariantSeed = seed;
+        }
 
         public void Reset()
         {
@@ -35,7 +42,11 @@ namespace TankGame.Tank.AI
             ResetProgressWindow();
         }
 
-        public void RebuildFromCheckpoints(IReadOnlyList<NavMeshCheckpointNode> checkpoints, Vector3 selfPosition, float sampleRadius)
+        public void RebuildFromCheckpoints(
+            IReadOnlyList<NavMeshCheckpointNode> checkpoints,
+            Vector3 selfPosition,
+            float sampleRadius,
+            float maxCheckpointOffset)
         {
             patrolPoints.Clear();
             currentIndex = 0;
@@ -49,7 +60,7 @@ namespace TankGame.Tank.AI
             if (!TrySample(selfPosition, sampleRadius, out Vector3 selfOnMesh))
                 selfOnMesh = selfPosition;
 
-            var graphNodes = BuildGraphNodes(checkpoints, selfOnMesh, sampleRadius);
+            var graphNodes = BuildGraphNodes(checkpoints, selfOnMesh, sampleRadius, maxCheckpointOffset);
             if (graphNodes.Count <= 1)
             {
                 ResetProgressWindow();
@@ -132,7 +143,7 @@ namespace TankGame.Tank.AI
                 return false;
 
             int attempts = 0;
-            float reachThreshold = Mathf.Max(0.4f, reachDistance);
+            float reachThreshold = Mathf.Max(0.1f, reachDistance);
             float timeout = Mathf.Max(1f, stuckTimeout);
 
             while (attempts < patrolPoints.Count)
@@ -200,7 +211,8 @@ namespace TankGame.Tank.AI
         private List<PatrolGraphNode> BuildGraphNodes(
             IReadOnlyList<NavMeshCheckpointNode> checkpoints,
             Vector3 selfOnMesh,
-            float sampleRadius)
+            float sampleRadius,
+            float maxCheckpointOffset)
         {
             var nodes = new List<PatrolGraphNode>(checkpoints.Count);
             var indexByCheckpoint = new Dictionary<NavMeshCheckpointNode, int>(checkpoints.Count);
@@ -211,7 +223,11 @@ namespace TankGame.Tank.AI
                 if (checkpoint == null || indexByCheckpoint.ContainsKey(checkpoint))
                     continue;
 
-                if (!TrySample(checkpoint.transform.position, sampleRadius, out Vector3 sampledPoint))
+                if (!TrySampleCheckpointPosition(
+                        checkpoint.transform.position,
+                        sampleRadius,
+                        maxCheckpointOffset,
+                        out Vector3 sampledPoint))
                     continue;
 
                 if (!TryCalculateCompletePath(selfOnMesh, sampledPoint))
@@ -260,50 +276,28 @@ namespace TankGame.Tank.AI
         private int FindNearestStartNodeIndex(List<PatrolGraphNode> graphNodes, Vector3 selfOnMesh)
         {
             int bestIndex = -1;
-            float bestDistance = float.PositiveInfinity;
-
-            for (int i = 0; i < graphNodes.Count; i++)
-            {
-                if (graphNodes[i].Outgoing.Count == 0)
-                    continue;
-
-                float pathDistance = GetPathDistance(selfOnMesh, graphNodes[i].Position);
-                if (float.IsInfinity(pathDistance))
-                    continue;
-
-                if (pathDistance < bestDistance)
-                {
-                    bestDistance = pathDistance;
-                    bestIndex = i;
-                }
-            }
-
-            if (bestIndex >= 0)
-                return bestIndex;
-
-            bestDistance = float.PositiveInfinity;
-            for (int i = 0; i < graphNodes.Count; i++)
-            {
-                float pathDistance = GetPathDistance(selfOnMesh, graphNodes[i].Position);
-                if (float.IsInfinity(pathDistance))
-                    continue;
-
-                if (pathDistance < bestDistance)
-                {
-                    bestDistance = pathDistance;
-                    bestIndex = i;
-                }
-            }
-
-            if (bestIndex >= 0)
-                return bestIndex;
+            float bestPathDistance = float.PositiveInfinity;
+            float bestSqrDistance = float.PositiveInfinity;
 
             for (int i = 0; i < graphNodes.Count; i++)
             {
                 float sqrDistance = (graphNodes[i].Position - selfOnMesh).sqrMagnitude;
-                if (sqrDistance < bestDistance)
+                if (TryGetPathLength(selfOnMesh, graphNodes[i].Position, out float pathDistance))
                 {
-                    bestDistance = sqrDistance;
+                    bool pathIsBetter = pathDistance < bestPathDistance - 0.01f;
+                    bool samePathButCloser = Mathf.Abs(pathDistance - bestPathDistance) <= 0.01f && sqrDistance < bestSqrDistance;
+                    if (pathIsBetter || samePathButCloser)
+                    {
+                        bestPathDistance = pathDistance;
+                        bestSqrDistance = sqrDistance;
+                        bestIndex = i;
+                    }
+                    continue;
+                }
+
+                if (bestIndex < 0 && sqrDistance < bestSqrDistance)
+                {
+                    bestSqrDistance = sqrDistance;
                     bestIndex = i;
                 }
             }
@@ -326,6 +320,15 @@ namespace TankGame.Tank.AI
 
             while (visitedCount < graphNodes.Count && guard-- > 0)
             {
+                if (TryPickSeededUnvisitedNeighbor(current, graphNodes, visited, out int directNext))
+                {
+                    orderedIndices.Add(directNext);
+                    visited[directNext] = true;
+                    visitedCount++;
+                    current = directNext;
+                    continue;
+                }
+
                 if (!TryFindPathToNearestUnvisited(current, graphNodes, visited, out List<int> toUnvisited))
                     break;
 
@@ -344,7 +347,42 @@ namespace TankGame.Tank.AI
             return orderedIndices;
         }
 
-        private static bool TryFindPathToNearestUnvisited(
+        private bool TryPickSeededUnvisitedNeighbor(
+            int currentIndex,
+            List<PatrolGraphNode> graphNodes,
+            bool[] visited,
+            out int nextIndex)
+        {
+            nextIndex = -1;
+            if (graphNodes == null || currentIndex < 0 || currentIndex >= graphNodes.Count)
+                return false;
+
+            List<int> outgoing = graphNodes[currentIndex].Outgoing;
+            if (outgoing == null || outgoing.Count == 0)
+                return false;
+
+            int bestScore = int.MaxValue;
+            bool found = false;
+
+            for (int i = 0; i < outgoing.Count; i++)
+            {
+                int candidate = outgoing[i];
+                if (candidate < 0 || candidate >= graphNodes.Count || visited[candidate])
+                    continue;
+
+                int score = GetNeighborPriority(currentIndex, candidate);
+                if (!found || score < bestScore)
+                {
+                    found = true;
+                    bestScore = score;
+                    nextIndex = candidate;
+                }
+            }
+
+            return found;
+        }
+
+        private bool TryFindPathToNearestUnvisited(
             int startIndex,
             List<PatrolGraphNode> graphNodes,
             bool[] alreadyVisited,
@@ -374,10 +412,10 @@ namespace TankGame.Tank.AI
                     return path != null && path.Count > 1;
                 }
 
-                List<int> outgoing = graphNodes[current].Outgoing;
-                for (int i = 0; i < outgoing.Count; i++)
+                GetNeighborsOrdered(current, graphNodes, neighborOrderBuffer);
+                for (int i = 0; i < neighborOrderBuffer.Count; i++)
                 {
-                    int next = outgoing[i];
+                    int next = neighborOrderBuffer[i];
                     if (next < 0 || next >= count || visited[next])
                         continue;
 
@@ -390,7 +428,7 @@ namespace TankGame.Tank.AI
             return false;
         }
 
-        private static bool TryFindShortestPath(
+        private bool TryFindShortestPath(
             int startIndex,
             int goalIndex,
             List<PatrolGraphNode> graphNodes,
@@ -423,10 +461,10 @@ namespace TankGame.Tank.AI
                     return path != null && path.Count > 1;
                 }
 
-                List<int> outgoing = graphNodes[current].Outgoing;
-                for (int i = 0; i < outgoing.Count; i++)
+                GetNeighborsOrdered(current, graphNodes, neighborOrderBuffer);
+                for (int i = 0; i < neighborOrderBuffer.Count; i++)
                 {
-                    int next = outgoing[i];
+                    int next = neighborOrderBuffer[i];
                     if (next < 0 || next >= count || visited[next])
                         continue;
 
@@ -452,6 +490,39 @@ namespace TankGame.Tank.AI
 
             path.Reverse();
             return path;
+        }
+
+        private void GetNeighborsOrdered(int currentIndex, List<PatrolGraphNode> graphNodes, List<int> output)
+        {
+            output.Clear();
+
+            if (graphNodes == null || currentIndex < 0 || currentIndex >= graphNodes.Count)
+                return;
+
+            List<int> outgoing = graphNodes[currentIndex].Outgoing;
+            if (outgoing == null || outgoing.Count == 0)
+                return;
+
+            for (int i = 0; i < outgoing.Count; i++)
+            {
+                int next = outgoing[i];
+                if (next >= 0 && next < graphNodes.Count)
+                    output.Add(next);
+            }
+
+            output.Sort((a, b) => GetNeighborPriority(currentIndex, a).CompareTo(GetNeighborPriority(currentIndex, b)));
+        }
+
+        private int GetNeighborPriority(int fromIndex, int toIndex)
+        {
+            unchecked
+            {
+                int hash = routeVariantSeed;
+                hash = (hash * 397) ^ fromIndex;
+                hash = (hash * 397) ^ toIndex;
+                hash ^= (hash >> 16);
+                return hash & int.MaxValue;
+            }
         }
 
         private static void AppendPathIndices(
@@ -504,31 +575,50 @@ namespace TankGame.Tank.AI
             return false;
         }
 
+        private bool TrySampleCheckpointPosition(
+            Vector3 checkpointPosition,
+            float sampleRadius,
+            float maxCheckpointOffset,
+            out Vector3 sampledPosition)
+        {
+            float allowedOffset = Mathf.Max(0.3f, maxCheckpointOffset);
+            float allowedOffsetSqr = allowedOffset * allowedOffset;
+            float strictSampleRadius = Mathf.Min(Mathf.Max(0.5f, sampleRadius), allowedOffset);
+
+            if (TrySample(checkpointPosition, strictSampleRadius, out sampledPosition) &&
+                (sampledPosition - checkpointPosition).sqrMagnitude <= allowedOffsetSqr)
+            {
+                return true;
+            }
+
+            if (!TrySample(checkpointPosition, sampleRadius, out sampledPosition))
+                return false;
+
+            return (sampledPosition - checkpointPosition).sqrMagnitude <= allowedOffsetSqr;
+        }
+
+        private bool TryGetPathLength(Vector3 from, Vector3 to, out float pathLength)
+        {
+            pathLength = 0f;
+
+            if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, pathBuffer))
+                return false;
+
+            if (pathBuffer.status != NavMeshPathStatus.PathComplete || pathBuffer.corners == null || pathBuffer.corners.Length < 2)
+                return false;
+
+            for (int i = 1; i < pathBuffer.corners.Length; i++)
+                pathLength += Vector3.Distance(pathBuffer.corners[i - 1], pathBuffer.corners[i]);
+
+            return true;
+        }
+
         private bool TryCalculateCompletePath(Vector3 from, Vector3 to)
         {
             if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, pathBuffer))
                 return false;
 
             return pathBuffer.status == NavMeshPathStatus.PathComplete;
-        }
-
-        private float GetPathDistance(Vector3 from, Vector3 to)
-        {
-            if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, pathBuffer))
-                return float.PositiveInfinity;
-
-            if (pathBuffer.status != NavMeshPathStatus.PathComplete)
-                return float.PositiveInfinity;
-
-            Vector3[] corners = pathBuffer.corners;
-            if (corners == null || corners.Length < 2)
-                return Vector3.Distance(from, to);
-
-            float distance = 0f;
-            for (int i = 1; i < corners.Length; i++)
-                distance += Vector3.Distance(corners[i - 1], corners[i]);
-
-            return distance;
         }
 
         private static void SortPointsForCoverage(List<Vector3> points)

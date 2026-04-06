@@ -34,17 +34,23 @@ namespace TankGame.Tank.AI
         [SerializeField] private float chaseRange = 80f;
         [SerializeField] private float attackRange = 22f;
         [SerializeField] private float repathInterval = 0.2f;
-        [SerializeField] private float turnAngleForFullInput = 60f;
-        [SerializeField] private float moveAngleLimit = 100f;
+        [SerializeField] private float turnAngleForFullInput = 45f;
+        [SerializeField] private float moveAngleLimit = 75f;
+        [SerializeField] private float rotateInPlaceAngle = 45f;
+        [SerializeField] private float slowMoveTurnAngle = 25f;
+        [SerializeField] [Range(0f, 1f)] private float slowMoveFactorAtHighTurn = 0.25f;
+        [SerializeField] private float destinationSampleRadius = 3f;
         [SerializeField] private bool invertBodyForward = true;
 
         [Header("Patrol")]
         [SerializeField] private bool useNavMeshCheckpoints = true;
         [SerializeField] private Transform[] checkpointNodeTransforms;
         [SerializeField] private bool autoFindCheckpointNodesIfEmpty = true;
-        [SerializeField] private float checkpointReachDistance = 2.5f;
-        [SerializeField] private float checkpointSampleRadius = 4f;
-        [SerializeField] private float patrolStoppingDistance = 1f;
+        [SerializeField] private bool uniquePatrolRoutePerBot = true;
+        [SerializeField] private float checkpointReachDistance = 0.2f;
+        [SerializeField] private float checkpointSampleRadius = 1.5f;
+        [SerializeField] private float checkpointMaxSnapDistance = 1.25f;
+        [SerializeField] private float patrolStoppingDistance = 0.05f;
         [SerializeField] private float patrolStuckTimeout = 3f;
         [SerializeField] private float patrolPathFailureTimeout = 1.5f;
         [SerializeField] private float patrolRouteRebuildInterval = 4f;
@@ -61,6 +67,12 @@ namespace TankGame.Tank.AI
         [SerializeField] private float searchDuration = 4f;
         [SerializeField] private float searchReachDistance = 3f;
 
+        [Header("Squad Tactics")]
+        [SerializeField] private bool enableSquadCoordination = true;
+        [SerializeField] private float allyAttackClaimRange = 18f;
+        [SerializeField] private float flankRadius = 24f;
+        [SerializeField] private float flankRadiusJitter = 3f;
+
         [Header("Weapon Switching")]
         [SerializeField] private bool enableWeaponSwitching = true;
         [SerializeField] private float machineGunPreferredRange = 12f;
@@ -75,6 +87,7 @@ namespace TankGame.Tank.AI
 
         private readonly RaycastHit[] lineOfSightHits = new RaycastHit[16];
         private readonly List<NavMeshCheckpointNode> checkpointBuffer = new List<NavMeshCheckpointNode>(32);
+        private readonly List<NavMeshTankAI> squadBuffer = new List<NavMeshTankAI>(16);
 
         private NavMeshCheckpointNode[] cachedCheckpointNodes;
         private TankAIBrain brain;
@@ -89,6 +102,9 @@ namespace TankGame.Tank.AI
         private Vector3 lastAgentDestination;
         private bool hasLastAgentDestination;
         private TankAIState lastLoggedState = TankAIState.Idle;
+        private TankAIState previousDecisionState = TankAIState.Idle;
+        private int patrolVariantSeed;
+        private int patrolRouteRebuildCount;
 
         private void Awake()
         {
@@ -96,6 +112,7 @@ namespace TankGame.Tank.AI
             ConfigureAgent();
             brain = new TankAIBrain(chaseMemoryDuration, searchDuration, searchReachDistance);
             patrolPlanner = new TankAIPatrolPlanner();
+            patrolVariantSeed = Mathf.Abs(GetInstanceID());
         }
 
         private void OnEnable()
@@ -153,7 +170,18 @@ namespace TankGame.Tank.AI
             TankAIBrainDecision decision = brain.Evaluate(brainInput);
             LogStateChange(decision.State);
 
-            bool hasDestination = TryResolveDestination(decision, hasTarget, targetPosition, out Vector3 destination, out float stoppingDistance);
+            if (decision.State == TankAIState.Patrol && previousDecisionState != TankAIState.Patrol)
+                BuildPatrolRoute(true);
+            previousDecisionState = decision.State;
+
+            bool hasDestination = TryResolveDestination(
+                decision,
+                targetTransform,
+                hasTarget,
+                targetPosition,
+                distanceToTarget,
+                out Vector3 destination,
+                out float stoppingDistance);
             UpdateAgentDestination(hasDestination, destination, stoppingDistance);
             HandlePatrolPathFailures(decision.State, hasDestination);
 
@@ -201,12 +229,14 @@ namespace TankGame.Tank.AI
             agent.updateUpAxis = false;
             agent.autoBraking = true;
             agent.autoRepath = true;
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+            agent.avoidancePriority = 50 + (Mathf.Abs(GetInstanceID()) % 49);
 
             if (movement != null)
             {
                 agent.speed = Mathf.Max(0.1f, movement.MoveSpeed);
-                agent.angularSpeed = Mathf.Max(1f, movement.RotationSpeed);
-                agent.acceleration = Mathf.Max(2f, movement.MoveSpeed * 3f);
+                agent.angularSpeed = Mathf.Max(120f, movement.RotationSpeed * 2f);
+                agent.acceleration = Mathf.Max(6f, movement.MoveSpeed * 5f);
             }
         }
 
@@ -229,6 +259,8 @@ namespace TankGame.Tank.AI
             invalidPathStartTime = float.NegativeInfinity;
             hasLastAgentDestination = false;
             lastLoggedState = TankAIState.Idle;
+            previousDecisionState = TankAIState.Idle;
+            patrolRouteRebuildCount = 0;
         }
 
         private bool IsOperational()
@@ -282,13 +314,17 @@ namespace TankGame.Tank.AI
 
         private bool TryResolveDestination(
             TankAIBrainDecision decision,
+            Transform targetTransform,
             bool hasTarget,
             Vector3 targetPosition,
+            float distanceToTarget,
             out Vector3 destination,
             out float stoppingDistance)
         {
             destination = Vector3.zero;
             stoppingDistance = Mathf.Max(0.5f, attackRange * 0.85f);
+            float patrolReachDistance = Mathf.Clamp(checkpointReachDistance, 0.05f, 0.35f);
+            float patrolStopDistance = Mathf.Clamp(patrolStoppingDistance, 0.01f, 0.2f);
 
             switch (decision.State)
             {
@@ -296,14 +332,21 @@ namespace TankGame.Tank.AI
                 {
                     if (hasTarget)
                     {
+                        Vector3 chaseDestination = targetPosition;
+                        if (enableSquadCoordination &&
+                            TryGetSquadChaseDestination(targetTransform, targetPosition, distanceToTarget, out Vector3 squadDestination))
+                        {
+                            chaseDestination = squadDestination;
+                        }
+
                         if (GetPlanarDistance(transform.position, targetPosition) > chaseRange)
                         {
-                            destination = targetPosition;
+                            destination = chaseDestination;
                             stoppingDistance = Mathf.Max(0.5f, attackRange * 0.75f);
                             return true;
                         }
 
-                        destination = targetPosition;
+                        destination = chaseDestination;
                         stoppingDistance = Mathf.Max(0.5f, attackRange * 0.75f);
                         return true;
                     }
@@ -323,7 +366,7 @@ namespace TankGame.Tank.AI
                     if (decision.HasDestination)
                     {
                         destination = decision.Destination;
-                        stoppingDistance = Mathf.Max(0.5f, patrolStoppingDistance);
+                        stoppingDistance = patrolStopDistance;
                         return true;
                     }
 
@@ -339,11 +382,11 @@ namespace TankGame.Tank.AI
                         patrolPlanner.TryGetCurrentDestination(
                             transform.position,
                             Time.time,
-                            checkpointReachDistance,
+                            patrolReachDistance,
                             patrolStuckTimeout,
                             out destination))
                     {
-                        stoppingDistance = Mathf.Max(0.4f, patrolStoppingDistance);
+                        stoppingDistance = patrolStopDistance;
                         return true;
                     }
 
@@ -353,11 +396,11 @@ namespace TankGame.Tank.AI
                         patrolPlanner.TryGetCurrentDestination(
                             transform.position,
                             Time.time,
-                            checkpointReachDistance,
+                            patrolReachDistance,
                             patrolStuckTimeout,
                             out destination))
                     {
-                        stoppingDistance = Mathf.Max(0.4f, patrolStoppingDistance);
+                        stoppingDistance = patrolStopDistance;
                         return true;
                     }
 
@@ -385,17 +428,26 @@ namespace TankGame.Tank.AI
                 return;
             }
 
+            if (!TryProjectDestinationOnNavMesh(destination, out Vector3 projectedDestination))
+            {
+                if (agent.hasPath)
+                    agent.ResetPath();
+                hasLastAgentDestination = false;
+                return;
+            }
+
             bool destinationChanged = !hasLastAgentDestination ||
-                                      (lastAgentDestination - destination).sqrMagnitude > 1f;
+                                      (lastAgentDestination - projectedDestination).sqrMagnitude > 0.1225f;
 
             if (!destinationChanged && Time.time < nextRepathTime)
                 return;
 
             nextRepathTime = Time.time + Mathf.Max(0.05f, repathInterval);
             agent.stoppingDistance = Mathf.Max(0.1f, stoppingDistance);
-            agent.SetDestination(destination);
+            if (!agent.SetDestination(projectedDestination))
+                return;
 
-            lastAgentDestination = destination;
+            lastAgentDestination = projectedDestination;
             hasLastAgentDestination = true;
         }
 
@@ -433,17 +485,123 @@ namespace TankGame.Tank.AI
             LogAi("PATROL", "Skipped patrol point due to invalid/partial path.");
         }
 
+        private bool TryGetSquadChaseDestination(
+            Transform targetTransform,
+            Vector3 targetPosition,
+            float selfDistanceToTarget,
+            out Vector3 destination)
+        {
+            destination = targetPosition;
+
+            if (!enableSquadCoordination || targetTransform == null)
+                return false;
+            if (selfDistanceToTarget <= Mathf.Max(2f, attackRange * 0.85f))
+                return false;
+
+            PopulateSquadBufferForTarget(targetTransform.root, squadBuffer);
+            if (squadBuffer.Count <= 1)
+                return false;
+
+            bool anotherBotAlreadyEngaging = false;
+            float claimDistance = Mathf.Max(attackRange * 0.95f, allyAttackClaimRange);
+            for (int i = 0; i < squadBuffer.Count; i++)
+            {
+                NavMeshTankAI ai = squadBuffer[i];
+                if (ai == null || ai == this || !ai.isActiveAndEnabled)
+                    continue;
+
+                if (ai.health != null && !ai.health.IsAlive())
+                    continue;
+
+                float allyDistanceToTarget = GetPlanarDistance(ai.transform.position, targetPosition);
+                if (allyDistanceToTarget <= claimDistance)
+                {
+                    anotherBotAlreadyEngaging = true;
+                    break;
+                }
+            }
+
+            if (!anotherBotAlreadyEngaging)
+                return false;
+
+            squadBuffer.Sort((a, b) => a.GetInstanceID().CompareTo(b.GetInstanceID()));
+            int selfSlot = squadBuffer.IndexOf(this);
+            if (selfSlot < 0)
+                return false;
+
+            int slotCount = Mathf.Max(2, squadBuffer.Count);
+            float angleStep = 360f / slotCount;
+            float baseAngle = patrolVariantSeed % 360;
+            float baseRadius = Mathf.Max(flankRadius, attackRange * 1.15f);
+
+            for (int attempt = 0; attempt < slotCount; attempt++)
+            {
+                int slot = (selfSlot + attempt) % slotCount;
+                float radius = baseRadius + (slot % 2) * Mathf.Max(0f, flankRadiusJitter);
+                float angle = baseAngle + angleStep * slot;
+                Vector3 radial = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+                Vector3 candidate = targetPosition + radial * radius;
+
+                if (!TryProjectDestinationOnNavMesh(candidate, out Vector3 projected))
+                    continue;
+
+                if (!TryHasCompletePathTo(projected))
+                    continue;
+
+                destination = projected;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void PopulateSquadBufferForTarget(Transform targetRoot, List<NavMeshTankAI> output)
+        {
+            output.Clear();
+            if (targetRoot == null)
+                return;
+
+            IReadOnlyList<TankController> allTanks = TankRuntime.GetAllTanks();
+            for (int i = 0; i < allTanks.Count; i++)
+            {
+                TankController controller = allTanks[i];
+                if (controller == null || controller.IsLocalPlayer)
+                    continue;
+
+                NavMeshTankAI ai = controller.GetComponent<NavMeshTankAI>();
+                if (ai == null || !ai.isActiveAndEnabled)
+                    continue;
+
+                if (ai.health != null && !ai.health.IsAlive())
+                    continue;
+
+                if (ai.target == null || ai.target.root != targetRoot)
+                    continue;
+
+                output.Add(ai);
+            }
+        }
+
         private Vector2 ComputeMovementInput(bool hasDestination)
         {
             if (!hasDestination || agent == null || !agent.isOnNavMesh)
                 return Vector2.zero;
 
-            if (!agent.pathPending && agent.hasPath && agent.remainingDistance <= agent.stoppingDistance + 0.15f)
+            if (!agent.pathPending && agent.hasPath && agent.remainingDistance <= agent.stoppingDistance + 0.05f)
                 return Vector2.zero;
 
             Vector3 desiredWorld = Vector3.zero;
 
-            if (!agent.pathPending && agent.hasPath)
+            if (!agent.pathPending && agent.hasPath && agent.path.corners != null && agent.path.corners.Length >= 2)
+            {
+                Vector3 nextCorner = agent.path.corners[1];
+                Vector3 toCorner = nextCorner - transform.position;
+                toCorner.y = 0f;
+                if (toCorner.sqrMagnitude > 0.01f)
+                    desiredWorld = toCorner.normalized;
+            }
+
+            if (desiredWorld.sqrMagnitude < 0.01f)
             {
                 Vector3 toSteeringTarget = agent.steeringTarget - transform.position;
                 toSteeringTarget.y = 0f;
@@ -469,8 +627,19 @@ namespace TankGame.Tank.AI
             forward.Normalize();
 
             float signedAngle = Vector3.SignedAngle(forward, desiredWorld, Vector3.up);
+            float absAngle = Mathf.Abs(signedAngle);
+            if (absAngle >= Mathf.Max(1f, rotateInPlaceAngle))
+                return new Vector2(Mathf.Sign(signedAngle), 0f);
+
             float horizontal = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
-            float vertical = Mathf.Abs(signedAngle) <= moveAngleLimit ? 1f : 0f;
+            float vertical = absAngle <= moveAngleLimit ? 1f : 0f;
+
+            if (vertical > 0f && absAngle > slowMoveTurnAngle)
+            {
+                float turnRangeMax = Mathf.Max(slowMoveTurnAngle + 0.1f, rotateInPlaceAngle);
+                float t = Mathf.InverseLerp(slowMoveTurnAngle, turnRangeMax, absAngle);
+                vertical = Mathf.Lerp(1f, Mathf.Clamp01(slowMoveFactorAtHighTurn), t);
+            }
 
             return new Vector2(horizontal, vertical);
         }
@@ -485,11 +654,20 @@ namespace TankGame.Tank.AI
 
             nextPatrolRouteRebuildTime = Time.time + Mathf.Max(1f, patrolRouteRebuildInterval);
             patrolPlanner.Reset();
+            int variantSeed = uniquePatrolRoutePerBot
+                ? (patrolVariantSeed + patrolRouteRebuildCount * 7919)
+                : 0;
+            patrolPlanner.SetRouteVariantSeed(variantSeed);
+            patrolRouteRebuildCount++;
 
             if (useNavMeshCheckpoints)
             {
                 ResolveCheckpointNodes(checkpointBuffer);
-                patrolPlanner.RebuildFromCheckpoints(checkpointBuffer, transform.position, checkpointSampleRadius);
+                patrolPlanner.RebuildFromCheckpoints(
+                    checkpointBuffer,
+                    transform.position,
+                    checkpointSampleRadius,
+                    checkpointMaxSnapDistance);
             }
 
             if (!patrolPlanner.HasRoute)
@@ -623,6 +801,31 @@ namespace TankGame.Tank.AI
                 return true;
 
             return nearestHit.root == targetTransform.root;
+        }
+
+        private bool TryProjectDestinationOnNavMesh(Vector3 destination, out Vector3 projectedDestination)
+        {
+            float radius = Mathf.Max(0.5f, destinationSampleRadius);
+            if (NavMesh.SamplePosition(destination, out NavMeshHit hit, radius, NavMesh.AllAreas))
+            {
+                projectedDestination = hit.position;
+                return true;
+            }
+
+            projectedDestination = Vector3.zero;
+            return false;
+        }
+
+        private bool TryHasCompletePathTo(Vector3 destination)
+        {
+            if (!agent.isOnNavMesh)
+                return false;
+
+            var path = new NavMeshPath();
+            if (!NavMesh.CalculatePath(transform.position, destination, NavMesh.AllAreas, path))
+                return false;
+
+            return path.status == NavMeshPathStatus.PathComplete;
         }
 
         private void UpdateCombatWeapon(float distanceToTarget)

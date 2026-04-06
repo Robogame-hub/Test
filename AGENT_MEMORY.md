@@ -105,8 +105,18 @@ I should read this first before making changes.
    - `TankInputCommand` compatibility
    - bot AI (`NavMeshTankAI`) assumptions
 5. Preserve scene flow: `MainMenu -> Lobby -> Core`.
+6. Always update this memory file after each substantive implementation task (what changed + why).
+7. When AI behavior is modified, record updated assumptions about patrol, chase, and coordination logic.
 
 ## Session Log
 - 2026-04-06:
   - Read project structure, key docs, gameplay/menu/network scripts, and editor builders.
   - Built this memory file to keep persistent context for future tasks.
+  - Refactored tank bot AI architecture and added modular brain/planner flow.
+  - Updated patrol routing to respect checkpoint graph links and nearest-start behavior.
+  - Added strict turning/point-following tuning, squad anti-clumping combat coordination, and patrol rebuild on returning from chase/search.
+  - Added memory maintenance rule: always update `AGENT_MEMORY.md` after substantive tasks.
+  - Tightened patrol precision:
+    - Route start node now selected by shortest complete NavMesh path length (with distance fallback), improving "nearest point" start behavior in real topology.
+    - Added strict checkpoint snapping limit (`checkpointMaxSnapDistance`) so patrol points stay close to authored checkpoint nodes.
+    - Tightened patrol reach/stop clamps in AI (`checkpointReachDistance`, `patrolStoppingDistance`) to reduce wide waypoint passes.
