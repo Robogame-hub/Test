@@ -120,3 +120,19 @@ I should read this first before making changes.
     - Route start node now selected by shortest complete NavMesh path length (with distance fallback), improving "nearest point" start behavior in real topology.
     - Added strict checkpoint snapping limit (`checkpointMaxSnapDistance`) so patrol points stay close to authored checkpoint nodes.
     - Tightened patrol reach/stop clamps in AI (`checkpointReachDistance`, `patrolStoppingDistance`) to reduce wide waypoint passes.
+  - Fixed AI steering oscillation ("left-right wobble"):
+    - Added corner look-ahead for path following to avoid micro-target jitter near immediate corners.
+    - Added desired-direction smoothing and turn-sign stabilization to suppress rapid ±10-15 degree flip behavior.
+    - Added rotate-in-place hysteresis (`rotateInPlaceAngle` / `rotateInPlaceExitAngle`) so bots do not rapidly enter/exit turn mode.
+  - Switched patrol to dynamic checkpoint progression:
+    - `TankAIPatrolPlanner` now picks the next checkpoint only when current is reached (online progression).
+    - Next checkpoint selection is strictly from linked `NextNodes` and uses nearest reachable path distance; no prebuilt full-route loop is used.
+    - Fallback patrol route remains as reserve when linked checkpoint graph is unavailable.
+  - Added stuck detection and recovery in `NavMeshTankAI`:
+    - Detects low displacement over time while bot should be moving toward destination.
+    - Recovery phases: reverse + pivot turn, then repath.
+    - Repeated stuck events on patrol trigger skip to the next linked checkpoint to avoid wall-lock loops.
+  - Stabilization pass for dynamic patrol logic:
+    - Removed planner-side auto destination override on timeout for checkpoint-graph mode (checkpoint is no longer reselected repeatedly while standing on previous node).
+    - Kept checkpoint switches only on true reach/explicit skip, reducing back-forward oscillation.
+    - Added stuck-recovery cooldown and heading-error guard to avoid false stuck triggers while bot is legitimately rotating toward path direction.

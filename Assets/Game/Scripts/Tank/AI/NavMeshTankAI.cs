@@ -37,8 +37,13 @@ namespace TankGame.Tank.AI
         [SerializeField] private float turnAngleForFullInput = 45f;
         [SerializeField] private float moveAngleLimit = 75f;
         [SerializeField] private float rotateInPlaceAngle = 45f;
+        [SerializeField] private float rotateInPlaceExitAngle = 18f;
+        [SerializeField] private float turnDeadZoneAngle = 3f;
+        [SerializeField] private float turnFlipSuppressionAngle = 20f;
         [SerializeField] private float slowMoveTurnAngle = 25f;
         [SerializeField] [Range(0f, 1f)] private float slowMoveFactorAtHighTurn = 0.25f;
+        [SerializeField] private float pathCornerLookAheadDistance = 2.5f;
+        [SerializeField] private float desiredDirectionSmoothing = 10f;
         [SerializeField] private float destinationSampleRadius = 3f;
         [SerializeField] private bool invertBodyForward = true;
 
@@ -47,16 +52,28 @@ namespace TankGame.Tank.AI
         [SerializeField] private Transform[] checkpointNodeTransforms;
         [SerializeField] private bool autoFindCheckpointNodesIfEmpty = true;
         [SerializeField] private bool uniquePatrolRoutePerBot = true;
-        [SerializeField] private float checkpointReachDistance = 0.2f;
+        [SerializeField] private float checkpointReachDistance = 0.12f;
         [SerializeField] private float checkpointSampleRadius = 1.5f;
         [SerializeField] private float checkpointMaxSnapDistance = 1.25f;
-        [SerializeField] private float patrolStoppingDistance = 0.05f;
+        [SerializeField] private float patrolStoppingDistance = 0.03f;
         [SerializeField] private float patrolStuckTimeout = 3f;
         [SerializeField] private float patrolPathFailureTimeout = 1.5f;
         [SerializeField] private float patrolRouteRebuildInterval = 4f;
         [SerializeField] private int fallbackPatrolPointCount = 5;
         [SerializeField] private float fallbackPatrolRadius = 50f;
         [SerializeField] private float fallbackPatrolPointSpacing = 8f;
+
+        [Header("Stuck Recovery")]
+        [SerializeField] private float stuckCheckInterval = 0.35f;
+        [SerializeField] private float stuckMinMoveDistance = 0.2f;
+        [SerializeField] private float stuckTimeToRecover = 1.3f;
+        [SerializeField] private float stuckMinDistanceToGoal = 1.5f;
+        [SerializeField] [Range(-1f, -0.1f)] private float stuckReverseInput = -0.8f;
+        [SerializeField] private float stuckReverseDuration = 0.55f;
+        [SerializeField] [Range(0.1f, 1f)] private float stuckTurnInput = 0.9f;
+        [SerializeField] private float stuckTurnDuration = 0.6f;
+        [SerializeField] private float stuckRecoveryCooldown = 1.2f;
+        [SerializeField] private int maxRecoveriesBeforeSkipPoint = 2;
 
         [Header("Combat")]
         [SerializeField] private float fireRange = 25f;
@@ -105,6 +122,26 @@ namespace TankGame.Tank.AI
         private TankAIState previousDecisionState = TankAIState.Idle;
         private int patrolVariantSeed;
         private int patrolRouteRebuildCount;
+        private int lastTurnSign;
+        private bool rotateInPlaceActive;
+        private Vector3 smoothedDesiredWorld;
+        private bool hasSmoothedDesiredWorld;
+        private StuckRecoveryPhase stuckRecoveryPhase = StuckRecoveryPhase.None;
+        private float stuckRecoveryPhaseEndTime;
+        private int stuckRecoveryTurnSign = 1;
+        private float nextStuckSampleTime;
+        private Vector3 lastStuckSamplePosition;
+        private bool hasStuckSamplePosition;
+        private float stuckAccumulatedTime;
+        private int consecutiveStuckRecoveries;
+        private float stuckRecoveryCooldownUntil;
+
+        private enum StuckRecoveryPhase
+        {
+            None = 0,
+            Reverse = 1,
+            Pivot = 2
+        }
 
         private void Awake()
         {
@@ -184,6 +221,7 @@ namespace TankGame.Tank.AI
                 out float stoppingDistance);
             UpdateAgentDestination(hasDestination, destination, stoppingDistance);
             HandlePatrolPathFailures(decision.State, hasDestination);
+            UpdateStuckRecoveryState(decision.State, hasDestination, destination, stoppingDistance);
 
             Vector2 movementInput = ComputeMovementInput(hasDestination);
             UpdateCombatWeapon(hasTarget ? distanceToTarget : float.PositiveInfinity);
@@ -261,6 +299,19 @@ namespace TankGame.Tank.AI
             lastLoggedState = TankAIState.Idle;
             previousDecisionState = TankAIState.Idle;
             patrolRouteRebuildCount = 0;
+            lastTurnSign = 0;
+            rotateInPlaceActive = false;
+            smoothedDesiredWorld = Vector3.zero;
+            hasSmoothedDesiredWorld = false;
+            stuckRecoveryPhase = StuckRecoveryPhase.None;
+            stuckRecoveryPhaseEndTime = 0f;
+            stuckRecoveryTurnSign = 1;
+            nextStuckSampleTime = 0f;
+            lastStuckSamplePosition = Vector3.zero;
+            hasStuckSamplePosition = false;
+            stuckAccumulatedTime = 0f;
+            consecutiveStuckRecoveries = 0;
+            stuckRecoveryCooldownUntil = 0f;
         }
 
         private bool IsOperational()
@@ -323,8 +374,8 @@ namespace TankGame.Tank.AI
         {
             destination = Vector3.zero;
             stoppingDistance = Mathf.Max(0.5f, attackRange * 0.85f);
-            float patrolReachDistance = Mathf.Clamp(checkpointReachDistance, 0.05f, 0.35f);
-            float patrolStopDistance = Mathf.Clamp(patrolStoppingDistance, 0.01f, 0.2f);
+            float patrolReachDistance = Mathf.Clamp(checkpointReachDistance, 0.03f, 0.2f);
+            float patrolStopDistance = Mathf.Clamp(patrolStoppingDistance, 0.01f, 0.12f);
 
             switch (decision.State)
             {
@@ -418,6 +469,14 @@ namespace TankGame.Tank.AI
             if (agent == null || !agent.isOnNavMesh)
                 return;
 
+            if (stuckRecoveryPhase != StuckRecoveryPhase.None)
+            {
+                if (agent.hasPath)
+                    agent.ResetPath();
+                hasLastAgentDestination = false;
+                return;
+            }
+
             agent.nextPosition = transform.position;
 
             if (!hasDestination)
@@ -453,7 +512,12 @@ namespace TankGame.Tank.AI
 
         private void HandlePatrolPathFailures(TankAIState state, bool hasDestination)
         {
-            if (state != TankAIState.Patrol || !hasDestination || patrolPlanner == null || agent == null || !agent.isOnNavMesh)
+            if (state != TankAIState.Patrol ||
+                !hasDestination ||
+                patrolPlanner == null ||
+                agent == null ||
+                !agent.isOnNavMesh ||
+                stuckRecoveryPhase != StuckRecoveryPhase.None)
             {
                 invalidPathStartTime = float.NegativeInfinity;
                 return;
@@ -482,6 +546,8 @@ namespace TankGame.Tank.AI
 
             patrolPlanner.SkipCurrentPoint();
             invalidPathStartTime = float.NegativeInfinity;
+            stuckAccumulatedTime = 0f;
+            hasStuckSamplePosition = false;
             LogAi("PATROL", "Skipped patrol point due to invalid/partial path.");
         }
 
@@ -582,23 +648,275 @@ namespace TankGame.Tank.AI
             }
         }
 
+        private bool TryGetCurrentSteeringDirection(out Vector3 direction)
+        {
+            direction = Vector3.zero;
+            if (agent == null || !agent.isOnNavMesh)
+                return false;
+
+            if (!agent.pathPending && agent.hasPath && agent.path.corners != null && agent.path.corners.Length >= 2)
+            {
+                float lookAheadDistance = Mathf.Max(0.5f, pathCornerLookAheadDistance);
+                Vector3[] corners = agent.path.corners;
+                for (int i = 1; i < corners.Length; i++)
+                {
+                    Vector3 toCorner = corners[i] - transform.position;
+                    toCorner.y = 0f;
+                    if (toCorner.sqrMagnitude <= 0.01f)
+                        continue;
+
+                    if (toCorner.magnitude >= lookAheadDistance || i == corners.Length - 1)
+                    {
+                        direction = toCorner.normalized;
+                        return true;
+                    }
+                }
+            }
+
+            Vector3 toSteeringTarget = agent.steeringTarget - transform.position;
+            toSteeringTarget.y = 0f;
+            if (toSteeringTarget.sqrMagnitude > 0.01f)
+            {
+                direction = toSteeringTarget.normalized;
+                return true;
+            }
+
+            Vector3 desiredVelocity = agent.desiredVelocity;
+            desiredVelocity.y = 0f;
+            if (desiredVelocity.sqrMagnitude > 0.01f)
+            {
+                direction = desiredVelocity.normalized;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void UpdateStuckRecoveryState(
+            TankAIState state,
+            bool hasDestination,
+            Vector3 destination,
+            float stoppingDistance)
+        {
+            if (stuckRecoveryPhase != StuckRecoveryPhase.None)
+            {
+                TryAdvanceStuckRecoveryPhase();
+                return;
+            }
+
+            bool movingState = state == TankAIState.Patrol || state == TankAIState.Chase || state == TankAIState.Search;
+            if (!movingState || !hasDestination || agent == null || !agent.isOnNavMesh)
+            {
+                nextStuckSampleTime = 0f;
+                hasStuckSamplePosition = false;
+                stuckAccumulatedTime = 0f;
+                consecutiveStuckRecoveries = 0;
+                return;
+            }
+
+            if (Time.time < stuckRecoveryCooldownUntil)
+                return;
+
+            if (agent.pathPending)
+                return;
+
+            float goalThreshold = Mathf.Max(stuckMinDistanceToGoal, stoppingDistance + Mathf.Max(0.2f, checkpointReachDistance));
+            float distanceToGoal = GetPlanarDistance(transform.position, destination);
+            if (distanceToGoal <= goalThreshold)
+            {
+                stuckAccumulatedTime = 0f;
+                hasStuckSamplePosition = false;
+                consecutiveStuckRecoveries = 0;
+                return;
+            }
+
+            if (Time.time < nextStuckSampleTime)
+                return;
+
+            float sampleInterval = Mathf.Max(0.1f, stuckCheckInterval);
+            nextStuckSampleTime = Time.time + sampleInterval;
+
+            Vector3 samplePosition = transform.position;
+            samplePosition.y = 0f;
+
+            if (!hasStuckSamplePosition)
+            {
+                hasStuckSamplePosition = true;
+                lastStuckSamplePosition = samplePosition;
+                return;
+            }
+
+            float movedDistance = Vector3.Distance(lastStuckSamplePosition, samplePosition);
+            lastStuckSamplePosition = samplePosition;
+
+            bool wantsToMove = agent.desiredVelocity.sqrMagnitude > 0.09f ||
+                               (agent.hasPath && agent.remainingDistance > goalThreshold);
+            if (!wantsToMove)
+            {
+                stuckAccumulatedTime = 0f;
+                return;
+            }
+
+            if (TryGetCurrentSteeringDirection(out Vector3 steeringDirection))
+            {
+                Vector3 forward = invertBodyForward ? -transform.forward : transform.forward;
+                forward.y = 0f;
+                if (forward.sqrMagnitude > 0.01f)
+                {
+                    float headingError = Mathf.Abs(Vector3.SignedAngle(forward.normalized, steeringDirection, Vector3.up));
+                    float turningThreshold = Mathf.Max(rotateInPlaceExitAngle, slowMoveTurnAngle + 4f);
+                    if (headingError >= turningThreshold)
+                    {
+                        stuckAccumulatedTime = 0f;
+                        return;
+                    }
+                }
+            }
+
+            if (movedDistance < Mathf.Max(0.02f, stuckMinMoveDistance))
+            {
+                stuckAccumulatedTime += sampleInterval;
+            }
+            else
+            {
+                stuckAccumulatedTime = 0f;
+                if (consecutiveStuckRecoveries > 0)
+                    consecutiveStuckRecoveries--;
+            }
+
+            if (stuckAccumulatedTime < Mathf.Max(0.5f, stuckTimeToRecover))
+                return;
+
+            BeginStuckRecovery(state, destination);
+        }
+
+        private void BeginStuckRecovery(TankAIState state, Vector3 destination)
+        {
+            Vector3 toGoal = destination - transform.position;
+            toGoal.y = 0f;
+
+            Vector3 forward = invertBodyForward ? -transform.forward : transform.forward;
+            forward.y = 0f;
+
+            int turnSign = 1;
+            if (toGoal.sqrMagnitude > 0.01f && forward.sqrMagnitude > 0.01f)
+            {
+                float signedAngle = Vector3.SignedAngle(forward.normalized, toGoal.normalized, Vector3.up);
+                if (Mathf.Abs(signedAngle) > 1f)
+                    turnSign = signedAngle >= 0f ? 1 : -1;
+                else
+                    turnSign = ((patrolVariantSeed + consecutiveStuckRecoveries) & 1) == 0 ? 1 : -1;
+            }
+            else
+            {
+                turnSign = ((patrolVariantSeed + consecutiveStuckRecoveries) & 1) == 0 ? 1 : -1;
+            }
+
+            stuckRecoveryTurnSign = turnSign == 0 ? 1 : turnSign;
+            stuckRecoveryPhase = StuckRecoveryPhase.Reverse;
+            stuckRecoveryPhaseEndTime = Time.time + Mathf.Max(0.1f, stuckReverseDuration);
+            stuckAccumulatedTime = 0f;
+            hasStuckSamplePosition = false;
+            consecutiveStuckRecoveries++;
+
+            if (state == TankAIState.Patrol &&
+                maxRecoveriesBeforeSkipPoint > 0 &&
+                consecutiveStuckRecoveries >= maxRecoveriesBeforeSkipPoint &&
+                patrolPlanner != null)
+            {
+                patrolPlanner.SkipCurrentPoint();
+                consecutiveStuckRecoveries = 0;
+                LogAi("STUCK", "Repeated recovery on patrol point, skipped to next linked checkpoint.");
+            }
+
+            if (agent != null && agent.isOnNavMesh && agent.hasPath)
+                agent.ResetPath();
+
+            hasLastAgentDestination = false;
+            nextRepathTime = 0f;
+            rotateInPlaceActive = false;
+            lastTurnSign = 0;
+            LogAi("STUCK", $"Recovery started. phase=Reverse turn={stuckRecoveryTurnSign}");
+        }
+
+        private void TryAdvanceStuckRecoveryPhase()
+        {
+            if (stuckRecoveryPhase == StuckRecoveryPhase.None || Time.time < stuckRecoveryPhaseEndTime)
+                return;
+
+            if (stuckRecoveryPhase == StuckRecoveryPhase.Reverse)
+            {
+                stuckRecoveryPhase = StuckRecoveryPhase.Pivot;
+                stuckRecoveryPhaseEndTime = Time.time + Mathf.Max(0.1f, stuckTurnDuration);
+                LogAi("STUCK", "Recovery phase switched to Pivot.");
+                return;
+            }
+
+            stuckRecoveryPhase = StuckRecoveryPhase.None;
+            stuckRecoveryPhaseEndTime = 0f;
+            hasLastAgentDestination = false;
+            nextRepathTime = 0f;
+            hasStuckSamplePosition = false;
+            stuckAccumulatedTime = 0f;
+            stuckRecoveryCooldownUntil = Time.time + Mathf.Max(0.2f, stuckRecoveryCooldown);
+            LogAi("STUCK", "Recovery completed.");
+        }
+
+        private bool TryGetStuckRecoveryInput(out Vector2 movementInput)
+        {
+            movementInput = Vector2.zero;
+            if (stuckRecoveryPhase == StuckRecoveryPhase.None)
+                return false;
+
+            if (stuckRecoveryPhase == StuckRecoveryPhase.Reverse)
+            {
+                float reverseVertical = Mathf.Clamp(stuckReverseInput, -1f, -0.05f);
+                float reverseHorizontal = Mathf.Clamp01(Mathf.Abs(stuckTurnInput)) * 0.35f * stuckRecoveryTurnSign;
+                movementInput = new Vector2(reverseHorizontal, reverseVertical);
+                return true;
+            }
+
+            float turnHorizontal = Mathf.Clamp01(Mathf.Abs(stuckTurnInput)) * stuckRecoveryTurnSign;
+            movementInput = new Vector2(turnHorizontal, 0f);
+            return true;
+        }
+
         private Vector2 ComputeMovementInput(bool hasDestination)
         {
+            if (TryGetStuckRecoveryInput(out Vector2 stuckRecoveryInput))
+                return stuckRecoveryInput;
+
             if (!hasDestination || agent == null || !agent.isOnNavMesh)
+            {
+                hasSmoothedDesiredWorld = false;
                 return Vector2.zero;
+            }
 
             if (!agent.pathPending && agent.hasPath && agent.remainingDistance <= agent.stoppingDistance + 0.05f)
+            {
+                hasSmoothedDesiredWorld = false;
                 return Vector2.zero;
+            }
 
             Vector3 desiredWorld = Vector3.zero;
 
             if (!agent.pathPending && agent.hasPath && agent.path.corners != null && agent.path.corners.Length >= 2)
             {
-                Vector3 nextCorner = agent.path.corners[1];
-                Vector3 toCorner = nextCorner - transform.position;
-                toCorner.y = 0f;
-                if (toCorner.sqrMagnitude > 0.01f)
-                    desiredWorld = toCorner.normalized;
+                float lookAheadDistance = Mathf.Max(0.5f, pathCornerLookAheadDistance);
+                Vector3[] corners = agent.path.corners;
+                for (int i = 1; i < corners.Length; i++)
+                {
+                    Vector3 toCorner = corners[i] - transform.position;
+                    toCorner.y = 0f;
+                    if (toCorner.sqrMagnitude <= 0.01f)
+                        continue;
+
+                    if (toCorner.magnitude >= lookAheadDistance || i == corners.Length - 1)
+                    {
+                        desiredWorld = toCorner.normalized;
+                        break;
+                    }
+                }
             }
 
             if (desiredWorld.sqrMagnitude < 0.01f)
@@ -619,6 +937,7 @@ namespace TankGame.Tank.AI
                 return Vector2.zero;
 
             desiredWorld.Normalize();
+            desiredWorld = GetSmoothedDesiredDirection(desiredWorld);
 
             Vector3 forward = invertBodyForward ? -transform.forward : transform.forward;
             forward.y = 0f;
@@ -628,10 +947,43 @@ namespace TankGame.Tank.AI
 
             float signedAngle = Vector3.SignedAngle(forward, desiredWorld, Vector3.up);
             float absAngle = Mathf.Abs(signedAngle);
-            if (absAngle >= Mathf.Max(1f, rotateInPlaceAngle))
-                return new Vector2(Mathf.Sign(signedAngle), 0f);
 
-            float horizontal = Mathf.Clamp(signedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
+            float rotateEnter = Mathf.Max(1f, rotateInPlaceAngle);
+            float rotateExitUpper = Mathf.Max(1f, rotateEnter - 1f);
+            float rotateExit = Mathf.Clamp(rotateInPlaceExitAngle, 1f, rotateExitUpper);
+            if (rotateInPlaceActive)
+            {
+                if (absAngle <= rotateExit)
+                    rotateInPlaceActive = false;
+            }
+            else if (absAngle >= rotateEnter)
+            {
+                rotateInPlaceActive = true;
+            }
+
+            if (rotateInPlaceActive)
+            {
+                int turnSign = GetStableTurnSign(signedAngle, absAngle);
+                if (turnSign == 0)
+                    turnSign = lastTurnSign != 0 ? lastTurnSign : 1;
+
+                lastTurnSign = turnSign;
+                return new Vector2(turnSign, 0f);
+            }
+
+            if (absAngle <= Mathf.Max(0f, turnDeadZoneAngle))
+            {
+                lastTurnSign = 0;
+                return new Vector2(0f, 1f);
+            }
+
+            int stableTurnSign = GetStableTurnSign(signedAngle, absAngle);
+            float stableSignedAngle = stableTurnSign == 0 ? signedAngle : stableTurnSign * absAngle;
+            lastTurnSign = stableTurnSign != 0 ? stableTurnSign : lastTurnSign;
+
+            float horizontal = Mathf.Clamp(stableSignedAngle / Mathf.Max(1f, turnAngleForFullInput), -1f, 1f);
+            if (Mathf.Abs(horizontal) <= 0.05f)
+                horizontal = 0f;
             float vertical = absAngle <= moveAngleLimit ? 1f : 0f;
 
             if (vertical > 0f && absAngle > slowMoveTurnAngle)
@@ -642,6 +994,56 @@ namespace TankGame.Tank.AI
             }
 
             return new Vector2(horizontal, vertical);
+        }
+
+        private int GetStableTurnSign(float signedAngle, float absAngle)
+        {
+            if (absAngle <= Mathf.Max(0f, turnDeadZoneAngle))
+                return 0;
+
+            int rawTurnSign = signedAngle >= 0f ? 1 : -1;
+            if (lastTurnSign != 0 &&
+                rawTurnSign != lastTurnSign &&
+                absAngle <= Mathf.Max(turnDeadZoneAngle + 0.1f, turnFlipSuppressionAngle))
+            {
+                return lastTurnSign;
+            }
+
+            return rawTurnSign;
+        }
+
+        private Vector3 GetSmoothedDesiredDirection(Vector3 desiredWorld)
+        {
+            desiredWorld.y = 0f;
+            if (desiredWorld.sqrMagnitude <= 0.0001f)
+                return Vector3.zero;
+
+            desiredWorld.Normalize();
+
+            if (!hasSmoothedDesiredWorld)
+            {
+                smoothedDesiredWorld = desiredWorld;
+                hasSmoothedDesiredWorld = true;
+                return smoothedDesiredWorld;
+            }
+
+            float smoothing = Mathf.Max(0f, desiredDirectionSmoothing);
+            if (smoothing <= 0f)
+            {
+                smoothedDesiredWorld = desiredWorld;
+                return smoothedDesiredWorld;
+            }
+
+            float t = 1f - Mathf.Exp(-smoothing * Mathf.Max(0.0001f, Time.deltaTime));
+            smoothedDesiredWorld = Vector3.Slerp(smoothedDesiredWorld, desiredWorld, t);
+            smoothedDesiredWorld.y = 0f;
+
+            if (smoothedDesiredWorld.sqrMagnitude <= 0.0001f)
+                smoothedDesiredWorld = desiredWorld;
+            else
+                smoothedDesiredWorld.Normalize();
+
+            return smoothedDesiredWorld;
         }
 
         private void BuildPatrolRoute(bool force)
