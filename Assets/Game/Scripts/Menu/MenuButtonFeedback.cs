@@ -12,6 +12,8 @@ namespace TankGame.Menu
         public Button button;
         [Tooltip("Текст кнопки, который меняет цвет и масштаб.")]
         public TMP_Text targetText;
+        [Tooltip("Image кнопки, который меняет цвет по состояниям.")]
+        public Image targetButtonImage;
 
         [Header("Text Colors")]
         [Tooltip("Базовый цвет текста.")]
@@ -20,6 +22,14 @@ namespace TankGame.Menu
         public Color hoverTextColor = new Color(1f, 0.74f, 0.37f, 1f);
         [Tooltip("Цвет текста при нажатии.")]
         public Color pressedTextColor = new Color(1f, 0.96f, 0.87f, 1f);
+
+        [Header("Button Colors")]
+        [Tooltip("Базовый цвет кнопки.")]
+        public Color normalButtonColor = new Color(0.27f, 0.17f, 0.1f, 0.88f);
+        [Tooltip("Цвет кнопки при наведении.")]
+        public Color hoverButtonColor = new Color(0.39f, 0.24f, 0.12f, 0.92f);
+        [Tooltip("Цвет кнопки при нажатии.")]
+        public Color pressedButtonColor = new Color(0.54f, 0.31f, 0.13f, 0.96f);
 
         [Header("Scale")]
         [Tooltip("Масштаб текста при наведении.")]
@@ -47,12 +57,11 @@ namespace TankGame.Menu
                 button = GetComponent<Button>();
             if (targetText == null)
                 targetText = GetComponentInChildren<TMP_Text>(true);
+            if (targetButtonImage == null)
+                targetButtonImage = ResolveButtonImage();
 
             if (targetText != null)
                 initialTextScale = targetText.rectTransform.localScale;
-
-            if (button != null)
-                button.transition = Selectable.Transition.None;
 
             ApplyVisualState();
         }
@@ -84,6 +93,9 @@ namespace TankGame.Menu
             Color normalColor,
             Color hoverColor,
             Color pressedColor,
+            Color normalBgColor,
+            Color hoverBgColor,
+            Color pressedBgColor,
             float hoverScale,
             float lerpSpeed,
             AudioSource sharedAudioSource,
@@ -93,11 +105,35 @@ namespace TankGame.Menu
             normalTextColor = normalColor;
             hoverTextColor = hoverColor;
             pressedTextColor = pressedColor;
+            normalButtonColor = normalBgColor;
+            hoverButtonColor = hoverBgColor;
+            pressedButtonColor = pressedBgColor;
             hoverTextScale = Mathf.Max(1f, hoverScale);
             scaleLerpSpeed = Mathf.Max(1f, lerpSpeed);
             audioSource = sharedAudioSource;
             hoverSound = hoverClip;
             clickSound = clickClip;
+
+            if (targetButtonImage == null)
+                targetButtonImage = ResolveButtonImage();
+
+            if (button != null)
+            {
+                button.transition = Selectable.Transition.ColorTint;
+                if (button.targetGraphic == null && targetButtonImage != null)
+                    button.targetGraphic = targetButtonImage;
+
+                ColorBlock colors = button.colors;
+                colors.normalColor = normalButtonColor;
+                colors.highlightedColor = hoverButtonColor;
+                colors.selectedColor = hoverButtonColor;
+                colors.pressedColor = pressedButtonColor;
+                colors.disabledColor = new Color(normalButtonColor.r, normalButtonColor.g, normalButtonColor.b, Mathf.Clamp01(normalButtonColor.a * 0.5f));
+                colors.colorMultiplier = 1f;
+                colors.fadeDuration = 0.06f;
+                button.colors = colors;
+            }
+
             ApplyVisualState();
         }
 
@@ -141,15 +177,55 @@ namespace TankGame.Menu
 
         private void ApplyVisualState()
         {
-            if (targetText == null)
-                return;
+            Color textColor;
+            Color buttonColor;
 
             if (isPressed)
-                targetText.color = pressedTextColor;
+            {
+                textColor = pressedTextColor;
+                buttonColor = pressedButtonColor;
+            }
             else if (isHovered)
-                targetText.color = hoverTextColor;
+            {
+                textColor = hoverTextColor;
+                buttonColor = hoverButtonColor;
+            }
             else
-                targetText.color = normalTextColor;
+            {
+                textColor = normalTextColor;
+                buttonColor = normalButtonColor;
+            }
+
+            if (targetText != null)
+                targetText.color = textColor;
+
+            if (button != null && button.targetGraphic != null)
+                button.targetGraphic.color = buttonColor;
+
+            if (targetButtonImage != null && (button == null || targetButtonImage != button.targetGraphic))
+                targetButtonImage.color = buttonColor;
+        }
+
+        private Image ResolveButtonImage()
+        {
+            if (button == null)
+                return null;
+
+            if (button.targetGraphic is Image targetGraphicImage)
+                return targetGraphicImage;
+
+            Image ownImage = button.GetComponent<Image>();
+            if (ownImage != null)
+                return ownImage;
+
+            Image[] images = button.GetComponentsInChildren<Image>(true);
+            for (int i = 0; i < images.Length; i++)
+            {
+                if (images[i] != null)
+                    return images[i];
+            }
+
+            return null;
         }
 
         private void PlayOneShot(AudioClip clip)

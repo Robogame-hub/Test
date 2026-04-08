@@ -108,8 +108,9 @@ namespace TankGame.Menu
             InitSettingsPanel();
             HideUnsupportedSensitivityControls();
             InitSandboxMatchPanel();
+            ApplySliderVisuals();
+            ApplyNonClickableTextColor();
             ShowMainPanel();
-            MenuDesertTheme.ApplyScene(SceneManager.GetActiveScene());
         }
 
         private void OnDestroy()
@@ -205,7 +206,7 @@ namespace TankGame.Menu
             }
 
             Image panelImage = sandboxMatchPanel.GetComponent<Image>();
-            panelImage.color = new Color(0f, 0f, 0f, 0.45f);
+            panelImage.color = new Color(0f, 0f, 0f, 0f);
 
             VerticalLayoutGroup layout = sandboxMatchPanel.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleLeft;
@@ -345,6 +346,8 @@ namespace TankGame.Menu
                 ApplyButtonTextColor(backFromSandboxMatchButton);
                 ConfigureButtonFeedback(backFromSandboxMatchButton);
             }
+
+            ApplyNonClickableTextColor();
         }
 
         private static void SetPreferredHeight(GameObject target, float height)
@@ -383,7 +386,7 @@ namespace TankGame.Menu
             label.fontSize = fontSize;
             label.fontStyle = style;
             label.alignment = TextAlignmentOptions.MidlineLeft;
-            label.color = GetButtonNormalColor();
+            label.color = GetStaticTextColor();
 
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.minHeight = Mathf.Max(32f, fontSize + 8f);
@@ -395,7 +398,7 @@ namespace TankGame.Menu
         {
             GameObject buttonObj = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             buttonObj.transform.SetParent(parent, false);
-            buttonObj.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
+            buttonObj.GetComponent<Image>().color = GetButtonBackgroundNormalColor();
 
             LayoutElement buttonLe = buttonObj.GetComponent<LayoutElement>();
             buttonLe.minHeight = height;
@@ -469,6 +472,8 @@ namespace TankGame.Menu
                 ConfigureVolumeSlider(sfxVolumeSlider, audioSettings.SfxVolume);
             }
 
+            ApplySliderVisuals();
+
             RefreshLanguageValue();
             HookSettingsEvents();
 
@@ -535,6 +540,87 @@ namespace TankGame.Menu
             if (text != null)
                 text.color = GetButtonNormalColor();
         }
+
+        private void ApplyNonClickableTextColor()
+        {
+            TMP_Text[] allTexts = FindObjectsOfType<TMP_Text>(true);
+            Color staticColor = GetStaticTextColor();
+            Color statLabelColor = GetStatLabelTextColor();
+            Color statValueColor = GetStatValueTextColor();
+            for (int i = 0; i < allTexts.Length; i++)
+            {
+                TMP_Text text = allTexts[i];
+                if (text == null)
+                    continue;
+                if (text.gameObject.scene != gameObject.scene)
+                    continue;
+                if (text.GetComponentInParent<Button>() != null)
+                    continue;
+
+                SegmentedStatBar statBar = text.GetComponentInParent<SegmentedStatBar>();
+                if (statBar != null)
+                {
+                    text.color = statBar.valueText == text ? statValueColor : statLabelColor;
+                    continue;
+                }
+
+                text.color = staticColor;
+            }
+        }
+
+        private void ApplySliderVisuals()
+        {
+            StyleSlider(horizontalSensitivitySlider);
+            StyleSlider(masterVolumeSlider);
+            StyleSlider(musicVolumeSlider);
+            StyleSlider(sfxVolumeSlider);
+        }
+
+        private void StyleSlider(Slider slider)
+        {
+            if (slider == null)
+                return;
+
+            EnsureSliderReferences(slider);
+
+            Transform background = slider.transform.Find("Background");
+            if (background != null && background.TryGetComponent(out Image bgImage))
+            {
+                bgImage.color = GetSliderBackgroundColor();
+                bgImage.raycastTarget = false;
+            }
+
+            if (slider.fillRect != null && slider.fillRect.TryGetComponent(out Image fillImage))
+                fillImage.color = GetSliderFillColor();
+
+            if (slider.handleRect != null && slider.handleRect.TryGetComponent(out Image handleImage))
+                handleImage.color = GetSliderHandleColor();
+        }
+
+        private static void EnsureSliderReferences(Slider slider)
+        {
+            if (slider == null)
+                return;
+
+            if (slider.fillRect == null)
+            {
+                Transform fill = slider.transform.Find("Fill Area/Fill");
+                if (fill == null)
+                    fill = slider.transform.Find("FillArea/Fill");
+                if (fill != null)
+                    slider.fillRect = fill as RectTransform;
+            }
+
+            if (slider.handleRect == null)
+            {
+                Transform handle = slider.transform.Find("Handle");
+                if (handle == null)
+                    handle = slider.transform.Find("Handle Slide Area/Handle");
+                if (handle != null)
+                    slider.handleRect = handle as RectTransform;
+            }
+        }
+
         private void SetupButtonFeedbacks()
         {
             EnsureButtonFeedbackAudioSource();
@@ -581,10 +667,14 @@ namespace TankGame.Menu
 
             feedback.button = button;
             feedback.targetText = button.GetComponentInChildren<TMP_Text>(true);
+            feedback.targetButtonImage = button.targetGraphic as Image;
             feedback.Configure(
                 GetButtonNormalColor(),
                 GetButtonHoverColor(),
                 GetButtonPressedColor(),
+                GetButtonBackgroundNormalColor(),
+                GetButtonBackgroundHoverColor(),
+                GetButtonBackgroundPressedColor(),
                 GetButtonHoverScale(),
                 GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
@@ -616,6 +706,24 @@ namespace TankGame.Menu
             return cfg != null ? cfg.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
         }
 
+        private Color GetButtonBackgroundNormalColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.normalButtonColor : new Color(0.27f, 0.17f, 0.1f, 0.88f);
+        }
+
+        private Color GetButtonBackgroundHoverColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.hoverButtonColor : new Color(0.39f, 0.24f, 0.12f, 0.92f);
+        }
+
+        private Color GetButtonBackgroundPressedColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.pressedButtonColor : new Color(0.54f, 0.31f, 0.13f, 0.96f);
+        }
+
         private float GetButtonHoverScale()
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
@@ -626,6 +734,42 @@ namespace TankGame.Menu
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
             return cfg != null ? Mathf.Max(1f, cfg.scaleLerpSpeed) : 16f;
+        }
+
+        private Color GetStaticTextColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.staticTextColor : new Color(0.92f, 0.78f, 0.55f, 0.96f);
+        }
+
+        private Color GetStatLabelTextColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.statLabelTextColor : new Color(0.92f, 0.78f, 0.55f, 0.96f);
+        }
+
+        private Color GetStatValueTextColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.statValueTextColor : new Color(1f, 0.72f, 0.36f, 1f);
+        }
+
+        private Color GetSliderBackgroundColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderBackgroundColor : new Color(0.19f, 0.12f, 0.07f, 0.92f);
+        }
+
+        private Color GetSliderFillColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderFillColor : new Color(0.97f, 0.58f, 0.2f, 0.98f);
+        }
+
+        private Color GetSliderHandleColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderHandleColor : new Color(0.99f, 0.79f, 0.44f, 1f);
         }
 
         private AudioClip GetButtonHoverSound()

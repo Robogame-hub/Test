@@ -98,9 +98,9 @@ namespace TankGame.Menu
             ApplySharedButtonFeedbackConfig();
             SetupButtonFeedbacks();
             InitSettingsPanel();
+            ApplyNonClickableTextColor();
             RefreshRestartButtonVisibility();
             SetMenuVisible(false);
-            MenuDesertTheme.ApplyScene(SceneManager.GetActiveScene());
         }
 
         private void OnEnable()
@@ -200,7 +200,7 @@ namespace TankGame.Menu
             isInitializing = false;
         }
 
-        private static void NormalizeSliderVisual(Slider slider)
+        private void NormalizeSliderVisual(Slider slider)
         {
             if (slider == null)
                 return;
@@ -269,11 +269,16 @@ namespace TankGame.Menu
                 Image bgImage = background.GetComponent<Image>();
                 if (bgImage != null)
                 {
-                    Color c = bgImage.color;
-                    bgImage.color = new Color(c.r, c.g, c.b, Mathf.Max(c.a, 0.28f));
+                    bgImage.color = GetSliderBackgroundColor();
                     bgImage.raycastTarget = false;
                 }
             }
+
+            if (slider.fillRect != null && slider.fillRect.TryGetComponent(out Image fillImage))
+                fillImage.color = GetSliderFillColor();
+
+            if (slider.handleRect != null && slider.handleRect.TryGetComponent(out Image handleImage))
+                handleImage.color = GetSliderHandleColor();
         }
 
         private void SetupSensitivitySlider(Slider slider, float value, TMP_Text label)
@@ -324,6 +329,30 @@ namespace TankGame.Menu
             ConfigureButtonFeedback(backFromSettingsButton);
         }
 
+        private void ApplyNonClickableTextColor()
+        {
+            ApplyNonClickableTextColorInRoot(menuPanel);
+            ApplyNonClickableTextColorInRoot(settingsPanel);
+        }
+
+        private void ApplyNonClickableTextColorInRoot(GameObject root)
+        {
+            if (root == null)
+                return;
+
+            TMP_Text[] texts = root.GetComponentsInChildren<TMP_Text>(true);
+            Color staticColor = GetStaticTextColor();
+            for (int i = 0; i < texts.Length; i++)
+            {
+                TMP_Text text = texts[i];
+                if (text == null)
+                    continue;
+                if (text.GetComponentInParent<Button>() != null)
+                    continue;
+                text.color = staticColor;
+            }
+        }
+
         private void EnsureButtonFeedbackAudioSource()
         {
             if (buttonFeedbackAudioSource != null)
@@ -353,10 +382,14 @@ namespace TankGame.Menu
 
             feedback.button = button;
             feedback.targetText = text;
+            feedback.targetButtonImage = button.targetGraphic as Image;
             feedback.Configure(
                 GetButtonNormalColor(),
                 GetButtonHoverColor(),
                 GetButtonPressedColor(),
+                GetButtonBackgroundNormalColor(),
+                GetButtonBackgroundHoverColor(),
+                GetButtonBackgroundPressedColor(),
                 GetButtonHoverScale(),
                 GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
@@ -386,6 +419,48 @@ namespace TankGame.Menu
         {
             MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
             return cfg != null ? cfg.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
+        }
+
+        private Color GetButtonBackgroundNormalColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.normalButtonColor : new Color(0.27f, 0.17f, 0.1f, 0.88f);
+        }
+
+        private Color GetButtonBackgroundHoverColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.hoverButtonColor : new Color(0.39f, 0.24f, 0.12f, 0.92f);
+        }
+
+        private Color GetButtonBackgroundPressedColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.pressedButtonColor : new Color(0.54f, 0.31f, 0.13f, 0.96f);
+        }
+
+        private Color GetStaticTextColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.staticTextColor : new Color(0.92f, 0.78f, 0.55f, 0.96f);
+        }
+
+        private Color GetSliderBackgroundColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderBackgroundColor : new Color(0.19f, 0.12f, 0.07f, 0.92f);
+        }
+
+        private Color GetSliderFillColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderFillColor : new Color(0.97f, 0.58f, 0.2f, 0.98f);
+        }
+
+        private Color GetSliderHandleColor()
+        {
+            MenuButtonFeedbackConfig cfg = sharedButtonFeedbackConfig;
+            return cfg != null ? cfg.sliderHandleColor : new Color(0.99f, 0.79f, 0.44f, 1f);
         }
 
         private float GetButtonHoverScale()

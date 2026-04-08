@@ -12,9 +12,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18bf4d95f4a74b1692ec57d79139db8e, type: 3}
   m_Name: MenuButtonFeedbackConfig
   m_EditorClassIdentifier: 
-  normalTextColor: {r: 0.9607843, g: 0.85882354, b: 0.6666667, a: 1}
-  hoverTextColor: {r: 1, g: 0.7372549, b: 0.36862746, a: 1}
-  pressedTextColor: {r: 1, g: 0.95686275, b: 0.8745098, a: 1}
+  normalTextColor: {r: 0.9607843, g: 0.85882354, b: 0.6666667, a: 0.39215687}
+  hoverTextColor: {r: 1, g: 0.7372549, b: 0.36862746, a: 0.78431374}
+  pressedTextColor: {r: 1, g: 0.95686275, b: 0.8745098, a: 0.98039216}
+  normalButtonColor: {r: 1, g: 1, b: 1, a: 0.88}
+  hoverButtonColor: {r: 1, g: 0.9471474, b: 0.8066038, a: 0.92}
+  pressedButtonColor: {r: 1, g: 0.9027595, b: 0.4481132, a: 0.96}
+  staticTextColor: {r: 0.854902, g: 0.52156866, b: 0.07058824, a: 1}
+  statLabelTextColor: {r: 0.92, g: 0.78, b: 0.55, a: 0.96}
+  statBackgroundColor: {r: 0.62, g: 0.24, b: 0.12, a: 0.5882353}
+  statFillColor: {r: 1, g: 0.67, b: 0.25, a: 0.78431374}
+  statValueTextColor: {r: 1, g: 0.72, b: 0.36, a: 1}
+  speedStatBackgroundColor: {r: 0.12156862, g: 0.5452497, b: 0.61960787, a: 0.39215687}
+  speedStatFillColor: {r: 0.504717, g: 0.81309986, b: 1, a: 0.96}
+  armorStatBackgroundColor: {r: 0.12156862, g: 0.61960787, b: 0.398126, a: 0.39215687}
+  armorStatFillColor: {r: 0.76491654, g: 1, b: 0.7311321, a: 0.96}
+  firepowerStatBackgroundColor: {r: 0.62, g: 0.24, b: 0.12, a: 0.39215687}
+  firepowerStatFillColor: {r: 0.9528302, g: 0.48774195, b: 0.4539427, a: 0.96}
+  handlingStatBackgroundColor: {r: 0.12156862, g: 0.44978997, b: 0.61960787, a: 0.39215687}
+  handlingStatFillColor: {r: 0.495283, g: 0.5139764, b: 1, a: 0.96}
+  sliderBackgroundColor: {r: 0.19, g: 0.12, b: 0.07, a: 0.5882353}
+  sliderFillColor: {r: 0.97, g: 0.58, b: 0.2, a: 0.98}
+  sliderHandleColor: {r: 0.99, g: 0.79, b: 0.44, a: 1}
+  previewScanLineSprite: {fileID: 600221674, guid: c0d0bd3bbb640d043b00402ae6ea189a,
+    type: 3}
+  previewScanLineColor: {r: 1, g: 0.67, b: 0.25, a: 0.45}
+  previewScanLineHeight: 1
+  previewScanLineSpeed: 120
   hoverSound: {fileID: 8300000, guid: c5230b845c1250e4fb641b743c1cbac7, type: 3}
   clickSound: {fileID: 8300000, guid: cd8b9f8ffad0cc64ea147215e28c6257, type: 3}
   hoverTextScale: 1.08

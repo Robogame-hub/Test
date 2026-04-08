@@ -60,9 +60,20 @@ namespace TankGame.Menu
         private int currentIndex;
         private GameObject currentPreviewInstance;
         private RenderTexture previewRenderTexture;
+        private PreviewScanLineEffect previewScanLineEffect;
+
+        private enum TankStatType
+        {
+            Speed,
+            Armor,
+            Firepower,
+            Handling
+        }
 
         private void Start()
         {
+            ApplySharedButtonFeedbackConfig();
+
             if (previousButton != null)
                 previousButton.onClick.AddListener(SelectPrevious);
             if (nextButton != null)
@@ -71,7 +82,7 @@ namespace TankGame.Menu
             currentIndex = Mathf.Clamp(GameSessionSettings.SelectedTankIndex, 0, Mathf.Max(0, tanks.Count - 1));
 
             EnsureStatBars();
-            ApplySharedButtonFeedbackConfig();
+            ApplyStatColors();
             ConfigureButtonFeedbacks();
             EnsurePreviewInfrastructure();
             Refresh();
@@ -86,7 +97,9 @@ namespace TankGame.Menu
             else if (sharedButtonFeedbackConfig == null)
                 sharedButtonFeedbackConfig = MenuButtonFeedbackConfig.LoadDefault();
 
+            ApplyStatColors();
             ConfigureButtonFeedbacks();
+            EnsurePreviewInfrastructure();
         }
 
         private void ConfigureButtonFeedbacks()
@@ -119,10 +132,14 @@ namespace TankGame.Menu
 
             feedback.button = button;
             feedback.targetText = button.GetComponentInChildren<TMP_Text>(true);
+            feedback.targetButtonImage = button.targetGraphic as Image;
             feedback.Configure(
                 GetButtonNormalColor(),
                 GetButtonHoverColor(),
                 GetButtonPressedColor(),
+                GetButtonBackgroundNormalColor(),
+                GetButtonBackgroundHoverColor(),
+                GetButtonBackgroundPressedColor(),
                 GetButtonHoverScale(),
                 GetButtonScaleLerpSpeed(),
                 buttonFeedbackAudioSource,
@@ -151,6 +168,76 @@ namespace TankGame.Menu
             return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedTextColor : new Color(1f, 0.96f, 0.87f, 1f);
         }
 
+        private Color GetButtonBackgroundNormalColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.normalButtonColor : new Color(0.27f, 0.17f, 0.1f, 0.88f);
+        }
+
+        private Color GetButtonBackgroundHoverColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.hoverButtonColor : new Color(0.39f, 0.24f, 0.12f, 0.92f);
+        }
+
+        private Color GetButtonBackgroundPressedColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.pressedButtonColor : new Color(0.54f, 0.31f, 0.13f, 0.96f);
+        }
+
+        private Color GetStaticTextColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.staticTextColor : new Color(0.92f, 0.78f, 0.55f, 0.96f);
+        }
+
+        private Color GetStatLabelTextColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.statLabelTextColor : new Color(0.92f, 0.78f, 0.55f, 0.96f);
+        }
+
+        private Color GetStatValueTextColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.statValueTextColor : new Color(1f, 0.72f, 0.36f, 1f);
+        }
+
+        private Color GetStatBackgroundColor(TankStatType statType)
+        {
+            if (sharedButtonFeedbackConfig == null)
+                return new Color(0.62f, 0.24f, 0.12f, 0.5f);
+
+            switch (statType)
+            {
+                case TankStatType.Speed:
+                    return sharedButtonFeedbackConfig.speedStatBackgroundColor;
+                case TankStatType.Armor:
+                    return sharedButtonFeedbackConfig.armorStatBackgroundColor;
+                case TankStatType.Firepower:
+                    return sharedButtonFeedbackConfig.firepowerStatBackgroundColor;
+                case TankStatType.Handling:
+                    return sharedButtonFeedbackConfig.handlingStatBackgroundColor;
+                default:
+                    return sharedButtonFeedbackConfig.statBackgroundColor;
+            }
+        }
+
+        private Color GetStatFillColor(TankStatType statType)
+        {
+            if (sharedButtonFeedbackConfig == null)
+                return new Color(1f, 0.67f, 0.25f, 0.96f);
+
+            switch (statType)
+            {
+                case TankStatType.Speed:
+                    return sharedButtonFeedbackConfig.speedStatFillColor;
+                case TankStatType.Armor:
+                    return sharedButtonFeedbackConfig.armorStatFillColor;
+                case TankStatType.Firepower:
+                    return sharedButtonFeedbackConfig.firepowerStatFillColor;
+                case TankStatType.Handling:
+                    return sharedButtonFeedbackConfig.handlingStatFillColor;
+                default:
+                    return sharedButtonFeedbackConfig.statFillColor;
+            }
+        }
+
         private float GetButtonHoverScale()
         {
             return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.hoverTextScale) : 1.08f;
@@ -170,15 +257,99 @@ namespace TankGame.Menu
         {
             return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.clickSound : null;
         }
-        private void EnsureStatBars()
+
+        private Sprite GetPreviewScanLineSprite()
         {
-            speedBar = EnsureStatBar(speedBar, "tank.speed_Row");
-            armorBar = EnsureStatBar(armorBar, "tank.armor_Row");
-            firepowerBar = EnsureStatBar(firepowerBar, "tank.firepower_Row");
-            handlingBar = EnsureStatBar(handlingBar, "tank.handling_Row");
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.previewScanLineSprite : null;
         }
 
-        private SegmentedStatBar EnsureStatBar(SegmentedStatBar current, string rowName)
+        private Color GetPreviewScanLineColor()
+        {
+            return sharedButtonFeedbackConfig != null ? sharedButtonFeedbackConfig.previewScanLineColor : new Color(1f, 0.67f, 0.25f, 0.45f);
+        }
+
+        private float GetPreviewScanLineHeight()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(1f, sharedButtonFeedbackConfig.previewScanLineHeight) : 12f;
+        }
+
+        private float GetPreviewScanLineSpeed()
+        {
+            return sharedButtonFeedbackConfig != null ? Mathf.Max(0.01f, sharedButtonFeedbackConfig.previewScanLineSpeed) : 120f;
+        }
+
+        private void EnsureStatBars()
+        {
+            speedBar = EnsureStatBar(speedBar, "tank.speed_Row", TankStatType.Speed);
+            armorBar = EnsureStatBar(armorBar, "tank.armor_Row", TankStatType.Armor);
+            firepowerBar = EnsureStatBar(firepowerBar, "tank.firepower_Row", TankStatType.Firepower);
+            handlingBar = EnsureStatBar(handlingBar, "tank.handling_Row", TankStatType.Handling);
+        }
+
+        private void ApplyStatColors()
+        {
+            if (tankNameText != null)
+                tankNameText.color = GetStaticTextColor();
+
+            ApplyStatBarColors(speedBar, TankStatType.Speed);
+            ApplyStatBarColors(armorBar, TankStatType.Armor);
+            ApplyStatBarColors(firepowerBar, TankStatType.Firepower);
+            ApplyStatBarColors(handlingBar, TankStatType.Handling);
+        }
+
+        private void ApplyStatBarColors(SegmentedStatBar statBar, TankStatType statType)
+        {
+            if (statBar == null)
+                return;
+
+            Color background = GetStatBackgroundColor(statType);
+            Color label = GetStatLabelTextColor();
+            Color fill = GetStatFillColor(statType);
+            Color value = GetStatValueTextColor();
+
+            statBar.backgroundColor = background;
+            statBar.fillColor = fill;
+
+            if (statBar.backgroundContainer != null)
+                TintBarContainer(statBar.backgroundContainer, background);
+
+            if (statBar.fillContainer != null)
+                TintBarContainer(statBar.fillContainer, fill);
+
+            TintStatRowText(statBar, label, value);
+        }
+
+        private static void TintBarContainer(RectTransform container, Color color)
+        {
+            if (container == null)
+                return;
+
+            Image[] images = container.GetComponentsInChildren<Image>(true);
+            for (int i = 0; i < images.Length; i++)
+            {
+                Image image = images[i];
+                if (image != null)
+                    image.color = color;
+            }
+        }
+
+        private static void TintStatRowText(SegmentedStatBar statBar, Color labelColor, Color valueColor)
+        {
+            if (statBar == null)
+                return;
+
+            TMP_Text[] texts = statBar.GetComponentsInChildren<TMP_Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                TMP_Text text = texts[i];
+                if (text == null)
+                    continue;
+
+                text.color = statBar.valueText == text ? valueColor : labelColor;
+            }
+        }
+
+        private SegmentedStatBar EnsureStatBar(SegmentedStatBar current, string rowName, TankStatType statType)
         {
             if (current != null)
                 return current;
@@ -226,7 +397,7 @@ namespace TankGame.Menu
             segmentLayout.minWidth = 8f;
             segmentLayout.preferredWidth = 8f;
             Image segmentTemplate = segmentTemplateObj.GetComponent<Image>();
-            segmentTemplate.color = new Color(1f, 0.67f, 0.25f, 0.96f);
+            segmentTemplate.color = GetStatFillColor(statType);
             segmentTemplateObj.SetActive(false);
 
             TMP_Text valueText = row.Find("Value") != null ? row.Find("Value").GetComponent<TMP_Text>() : null;
@@ -239,7 +410,7 @@ namespace TankGame.Menu
                 tmp.fontSize = 20f;
                 tmp.alignment = TextAlignmentOptions.Right;
                 TMP_Text rowLabel = row.GetComponentInChildren<TMP_Text>(true);
-                tmp.color = rowLabel != null ? rowLabel.color : new Color(0.96f, 0.86f, 0.67f, 1f);
+                tmp.color = rowLabel != null ? rowLabel.color : GetStatValueTextColor();
                 LayoutElement valueLayout = valueObj.GetComponent<LayoutElement>();
                 valueLayout.minWidth = 52f;
                 valueLayout.preferredWidth = 52f;
@@ -252,8 +423,11 @@ namespace TankGame.Menu
             statBar.segmentTemplate = segmentTemplate;
             statBar.valueText = valueText;
             statBar.segmentCount = 10;
-            statBar.backgroundColor = new Color(0.88f, 0.16f, 0.16f, 0.55f);
-            statBar.fillColor = new Color(1f, 0.67f, 0.25f, 0.96f);
+            statBar.backgroundColor = GetStatBackgroundColor(statType);
+            statBar.fillColor = GetStatFillColor(statType);
+            if (statBar.valueText != null)
+                statBar.valueText.color = GetStatValueTextColor();
+            ApplyStatBarColors(statBar, statType);
             EnsureStatRowHoverFeedback(row);
             return statBar;
         }
@@ -448,6 +622,7 @@ namespace TankGame.Menu
         private void EnsurePreviewInfrastructure()
         {
             EnsureRawImageTarget();
+            EnsurePreviewScanLine();
             EnsurePreviewRoot();
             EnsurePreviewCamera();
             EnsureDragRotator();
@@ -471,6 +646,40 @@ namespace TankGame.Menu
             previewRawImage = rawObj.GetComponent<RawImage>();
             previewRawImage.color = Color.white;
             previewRawImage.raycastTarget = true;
+        }
+
+        private void EnsurePreviewScanLine()
+        {
+            RectTransform host = tankPreviewImage != null
+                ? tankPreviewImage.rectTransform
+                : (previewRawImage != null ? previewRawImage.rectTransform : null);
+
+            if (host == null)
+                return;
+
+            if (previewScanLineEffect != null && previewScanLineEffect.transform != host)
+                previewScanLineEffect = null;
+
+            if (previewScanLineEffect == null)
+            {
+                previewScanLineEffect = host.GetComponent<PreviewScanLineEffect>();
+                if (previewScanLineEffect == null)
+                    previewScanLineEffect = host.gameObject.AddComponent<PreviewScanLineEffect>();
+            }
+
+            ApplyPreviewScanLineConfig();
+        }
+
+        private void ApplyPreviewScanLineConfig()
+        {
+            if (previewScanLineEffect == null)
+                return;
+
+            previewScanLineEffect.Configure(
+                GetPreviewScanLineSprite(),
+                GetPreviewScanLineColor(),
+                GetPreviewScanLineHeight(),
+                GetPreviewScanLineSpeed());
         }
 
         private void EnsurePreviewRoot()
