@@ -1,6 +1,6 @@
 ﻿# AGENT_MEMORY
 
-Last updated: 2026-04-06
+Last updated: 2026-04-10
 Workspace: `D:\PROJECTS\Test\Test`
 
 ## Purpose
@@ -154,3 +154,16 @@ I should read this first before making changes.
     - Updated scene builder color defaults for future scene regeneration:
       - `MainMenuSceneBuilder.cs`
       - `CorePauseMenuSceneBuilder.cs`.
+- 2026-04-10:
+  - Added `Assets/Game/Scripts/UI/RawImageUvScroll.cs` (`TankGame.UI.RawImageUvScroll`) for CRT/monitor overlays.
+  - Component scrolls `RawImage.uvRect` in real time (default speed `0, -0.03`) and supports unscaled time for stable menu/HUD effects.
+  - Updated tank preview scan-line behavior to sweep across the full screen height:
+    - `Assets/Game/Scripts/Menu/TankSelectionController.cs` now attaches `PreviewScanLineEffect` to the root canvas (instead of only the preview widget host).
+    - Added cleanup of duplicate/local preview scan-line effect components when host switching occurs.
+  - Investigated Core scene UI vs post-processing composition and applied camera-space canvas fix:
+    - In `Assets/Scenes/Core.unity`, `UIManager` canvas was switched from `ScreenSpaceOverlay` to `ScreenSpaceCamera` and bound to `Main Camera`.
+    - In `Assets/Game/Scripts/Editor/CorePauseMenuSceneBuilder.cs`, canvas creation/config now enforces `ScreenSpaceCamera` + `worldCamera` assignment so regenerated pause UI does not revert to overlay mode.
+  - Migrated localization text storage from hardcoded C# tables to external config:
+    - Added `Assets/Resources/Menu/LocalizationConfig.json` (+ `.meta`) as the source of truth for all localized keys and language native names.
+    - Refactored `Assets/Game/Scripts/Menu/LocalizationService.cs` to load translations from the JSON config at runtime (`Resources/Menu/LocalizationConfig`), replacing the inline dictionary/switch text tables.
+    - Updated language switching logic in `Assets/Game/Scripts/Menu/MainMenuController.cs` and `Assets/Game/Scripts/Menu/BattlePauseMenuController.cs` to use `LocalizationService.GetNextLanguage/GetPreviousLanguage` (removed hardcoded `% 5`/`next=4` assumptions).
