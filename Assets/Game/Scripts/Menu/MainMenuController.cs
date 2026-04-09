@@ -929,17 +929,13 @@ namespace TankGame.Menu
 
         private void OnPrevLanguage()
         {
-            int next = (int)LocalizationService.CurrentLanguage - 1;
-            if (next < 0)
-                next = 4;
-            LocalizationService.CurrentLanguage = (GameLanguage)next;
+            LocalizationService.CurrentLanguage = LocalizationService.GetPreviousLanguage(LocalizationService.CurrentLanguage);
             RefreshLanguageValue();
         }
 
         private void OnNextLanguage()
         {
-            int next = ((int)LocalizationService.CurrentLanguage + 1) % 5;
-            LocalizationService.CurrentLanguage = (GameLanguage)next;
+            LocalizationService.CurrentLanguage = LocalizationService.GetNextLanguage(LocalizationService.CurrentLanguage);
             RefreshLanguageValue();
         }
 

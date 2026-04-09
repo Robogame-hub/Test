@@ -1,0 +1,314 @@
+﻿{
+  "entries": [
+    {
+      "key": "menu.title",
+      "russian": "TANKS.EXE",
+      "english": "TANKS.EXE",
+      "french": "TANKS.EXE",
+      "german": "TANKS.EXE",
+      "japanese": "TANKS.EXE"
+    },
+    {
+      "key": "menu.play",
+      "russian": "Сетевая игра",
+      "english": "Network game",
+      "french": "Jeu en reseau",
+      "german": "Netzwerkspiel",
+      "japanese": "???"
+    },
+    {
+      "key": "menu.sandbox",
+      "russian": "Одиночная игра",
+      "english": "Single player",
+      "french": "Jeu solo",
+      "german": "Einzelspieler",
+      "japanese": "???????"
+    },
+    {
+      "key": "menu.settings",
+      "russian": "Настройки",
+      "english": "Settings",
+      "french": "Parametres",
+      "german": "Einstellungen",
+      "japanese": "??"
+    },
+    {
+      "key": "menu.exit",
+      "russian": "Выход",
+      "english": "Exit",
+      "french": "Quitter",
+      "german": "Beenden",
+      "japanese": "??"
+    },
+    {
+      "key": "menu.back",
+      "russian": "Х",
+      "english": "Х",
+      "french": "Х",
+      "german": "Х",
+      "japanese": "Х"
+    },
+    {
+      "key": "menu.start_match",
+      "russian": "Начать матч",
+      "english": "Start match",
+      "french": "Demarrer le match",
+      "german": "Match starten",
+      "japanese": "??"
+    },
+    {
+      "key": "pause.title",
+      "russian": "Пауза",
+      "english": "Pause",
+      "french": "Pause",
+      "german": "Pause",
+      "japanese": "???"
+    },
+    {
+      "key": "pause.restart",
+      "russian": "Рестарт",
+      "english": "Restart",
+      "french": "Redemarrer",
+      "german": "Neustart",
+      "japanese": "???"
+    },
+    {
+      "key": "pause.main_menu",
+      "russian": "Выход в главное меню",
+      "english": "Back to main menu",
+      "french": "Retour au menu principal",
+      "german": "Zum Hauptmenu",
+      "japanese": "???"
+    },
+    {
+      "key": "pause.desktop",
+      "russian": "Выход на рабочий стол",
+      "english": "Exit to desktop",
+      "french": "Quitter le jeu",
+      "german": "Zum Desktop",
+      "japanese": "???"
+    },
+    {
+      "key": "lobby.title",
+      "russian": "Лобби",
+      "english": "Lobby",
+      "french": "Lobby",
+      "german": "Lobby",
+      "japanese": "???"
+    },
+    {
+      "key": "lobby.rooms",
+      "russian": "Комнаты",
+      "english": "Rooms",
+      "french": "Salles",
+      "german": "Raume",
+      "japanese": "???"
+    },
+    {
+      "key": "lobby.nickname",
+      "russian": "Ник",
+      "english": "Nickname",
+      "french": "Pseudo",
+      "german": "Nickname",
+      "japanese": "??????"
+    },
+    {
+      "key": "lobby.no_rooms",
+      "russian": "Комнат пока нет",
+      "english": "No rooms yet",
+      "french": "Aucune salle",
+      "german": "Keine Raume",
+      "japanese": "?????????"
+    },
+    {
+      "key": "lobby.refresh",
+      "russian": "Обновить",
+      "english": "Refresh",
+      "french": "Actualiser",
+      "german": "Aktualisieren",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.create_room",
+      "russian": "Создать комнату",
+      "english": "Create room",
+      "french": "Creer une salle",
+      "german": "Raum erstellen",
+      "japanese": "?????"
+    },
+    {
+      "key": "lobby.play_solo",
+      "russian": "Играть одному",
+      "english": "Play solo",
+      "french": "Jouer solo",
+      "german": "Solo spielen",
+      "japanese": "?????"
+    },
+    {
+      "key": "lobby.join",
+      "russian": "Войти",
+      "english": "Join",
+      "french": "Rejoindre",
+      "german": "Beitreten",
+      "japanese": "??"
+    },
+    {
+      "key": "sandbox.title",
+      "russian": "Условия матча",
+      "english": "Match settings",
+      "french": "Parametres du match",
+      "german": "Match-Einstellungen",
+      "japanese": "??"
+    },
+    {
+      "key": "sandbox.bot_count",
+      "russian": "Боты",
+      "english": "Bots",
+      "french": "Bots",
+      "german": "Bots",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.title",
+      "russian": "Настройки",
+      "english": "Settings",
+      "french": "Parametres",
+      "german": "Einstellungen",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.sensitivity",
+      "russian": "Чувствительность",
+      "english": "Sensitivity",
+      "french": "Sensibilite",
+      "german": "Empfindlichkeit",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.master_sens",
+      "russian": "Общая",
+      "english": "Master",
+      "french": "General",
+      "german": "Gesamt",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.horizontal_sens",
+      "russian": "Горизонталь",
+      "english": "Horizontal",
+      "french": "Horizontal",
+      "german": "Horizontal",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.vertical_sens",
+      "russian": "Вертикаль",
+      "english": "Vertical",
+      "french": "Vertical",
+      "german": "Vertikal",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.sound",
+      "russian": "Звук",
+      "english": "Sound",
+      "french": "Son",
+      "german": "Sound",
+      "japanese": "????"
+    },
+    {
+      "key": "settings.master_volume",
+      "russian": "Общая громкость",
+      "english": "Master volume",
+      "french": "Volume principal",
+      "german": "Gesamtlautstarke",
+      "japanese": "??????"
+    },
+    {
+      "key": "settings.music_volume",
+      "russian": "Музыка",
+      "english": "Music",
+      "french": "Musique",
+      "german": "Musik",
+      "japanese": "??"
+    },
+    {
+      "key": "settings.sfx_volume",
+      "russian": "Эффекты",
+      "english": "SFX",
+      "french": "Effets",
+      "german": "Effekte",
+      "japanese": "???"
+    },
+    {
+      "key": "settings.language",
+      "russian": "Язык",
+      "english": "Language",
+      "french": "Langue",
+      "german": "Sprache",
+      "japanese": "??"
+    },
+    {
+      "key": "tank.select",
+      "russian": "Выбор танка",
+      "english": "Tank selection",
+      "french": "Selection du char",
+      "german": "Panzerwahl",
+      "japanese": "????"
+    },
+    {
+      "key": "tank.speed",
+      "russian": "Скорость",
+      "english": "Speed",
+      "french": "Vitesse",
+      "german": "Geschwindigkeit",
+      "japanese": "??"
+    },
+    {
+      "key": "tank.armor",
+      "russian": "Броня",
+      "english": "Armor",
+      "french": "Armure",
+      "german": "Panzerung",
+      "japanese": "??"
+    },
+    {
+      "key": "tank.firepower",
+      "russian": "Огневая мощь",
+      "english": "Firepower",
+      "french": "Puissance de feu",
+      "german": "Feuerkraft",
+      "japanese": "??"
+    },
+    {
+      "key": "tank.handling",
+      "russian": "Управление",
+      "english": "Handling",
+      "french": "Maniabilite",
+      "german": "Handling",
+      "japanese": "???"
+    }
+  ],
+  "languageNames": [
+    {
+      "language": 0,
+      "nativeName": "Русский"
+    },
+    {
+      "language": 1,
+      "nativeName": "English"
+    },
+    {
+      "language": 2,
+      "nativeName": "Francais"
+    },
+    {
+      "language": 3,
+      "nativeName": "Deutsch"
+    },
+    {
+      "language": 4,
+      "nativeName": "???"
+    }
+  ]
+}

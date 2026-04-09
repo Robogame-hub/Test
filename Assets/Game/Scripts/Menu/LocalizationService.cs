@@ -7,50 +7,11 @@ namespace TankGame.Menu
     public static class LocalizationService
     {
         private const string KeyLanguage = "Game.Language";
+        private const string LocalizationConfigPath = "Menu/LocalizationConfig";
 
-        private static readonly Dictionary<string, string[]> Table = new Dictionary<string, string[]>
-        {
-            ["menu.title"] = new[] { "ТАНКИ", "TANKS", "CHARS", "PANZER", "???" },
-            ["menu.play"] = new[] { "Сетевая игра", "Network game", "Jeu en reseau", "Netzwerkspiel", "???" },
-            ["menu.sandbox"] = new[] { "Одиночная игра", "Single player", "Jeu solo", "Einzelspieler", "???????" },
-            ["menu.settings"] = new[] { "Настройки", "Settings", "Parametres", "Einstellungen", "??" },
-            ["menu.exit"] = new[] { "Выход", "Exit", "Quitter", "Beenden", "??" },
-            ["menu.back"] = new[] { "Назад", "Back", "Retour", "Zuruck", "??" },
-            ["menu.start_match"] = new[] { "Начать матч", "Start match", "Demarrer le match", "Match starten", "??" },
-            ["pause.title"] = new[] { "Пауза", "Pause", "Pause", "Pause", "???" },
-            ["pause.restart"] = new[] { "Рестарт", "Restart", "Redemarrer", "Neustart", "???" },
-            ["pause.main_menu"] = new[] { "Выход в главное меню", "Back to main menu", "Retour au menu principal", "Zum Hauptmenu", "???" },
-            ["pause.desktop"] = new[] { "Выход на рабочий стол", "Exit to desktop", "Quitter le jeu", "Zum Desktop", "???" },
-
-            ["lobby.title"] = new[] { "Лобби", "Lobby", "Lobby", "Lobby", "???" },
-            ["lobby.rooms"] = new[] { "Комнаты", "Rooms", "Salles", "Raume", "???" },
-            ["lobby.nickname"] = new[] { "Ник", "Nickname", "Pseudo", "Nickname", "??????" },
-            ["lobby.no_rooms"] = new[] { "Комнат пока нет", "No rooms yet", "Aucune salle", "Keine Raume", "?????????" },
-            ["lobby.refresh"] = new[] { "Обновить", "Refresh", "Actualiser", "Aktualisieren", "??" },
-            ["lobby.create_room"] = new[] { "Создать комнату", "Create room", "Creer une salle", "Raum erstellen", "?????" },
-            ["lobby.play_solo"] = new[] { "Играть одному", "Play solo", "Jouer solo", "Solo spielen", "?????" },
-            ["lobby.join"] = new[] { "Войти", "Join", "Rejoindre", "Beitreten", "??" },
-
-            ["sandbox.title"] = new[] { "Условия матча", "Match settings", "Parametres du match", "Match-Einstellungen", "??" },
-            ["sandbox.bot_count"] = new[] { "Боты", "Bots", "Bots", "Bots", "??" },
-
-            ["settings.title"] = new[] { "Настройки", "Settings", "Parametres", "Einstellungen", "??" },
-            ["settings.sensitivity"] = new[] { "Чувствительность", "Sensitivity", "Sensibilite", "Empfindlichkeit", "??" },
-            ["settings.master_sens"] = new[] { "Общая", "Master", "General", "Gesamt", "??" },
-            ["settings.horizontal_sens"] = new[] { "Горизонталь", "Horizontal", "Horizontal", "Horizontal", "??" },
-            ["settings.vertical_sens"] = new[] { "Вертикаль", "Vertical", "Vertical", "Vertikal", "??" },
-            ["settings.sound"] = new[] { "Звук", "Sound", "Son", "Sound", "????" },
-            ["settings.master_volume"] = new[] { "Общая громкость", "Master volume", "Volume principal", "Gesamtlautstarke", "??????" },
-            ["settings.music_volume"] = new[] { "Музыка", "Music", "Musique", "Musik", "??" },
-            ["settings.sfx_volume"] = new[] { "Эффекты", "SFX", "Effets", "Effekte", "???" },
-            ["settings.language"] = new[] { "Язык", "Language", "Langue", "Sprache", "??" },
-
-            ["tank.select"] = new[] { "Выбор танка", "Tank selection", "Selection du char", "Panzerwahl", "????" },
-            ["tank.speed"] = new[] { "Скорость", "Speed", "Vitesse", "Geschwindigkeit", "??" },
-            ["tank.armor"] = new[] { "Броня", "Armor", "Armure", "Panzerung", "??" },
-            ["tank.firepower"] = new[] { "Огневая мощь", "Firepower", "Puissance de feu", "Feuerkraft", "??" },
-            ["tank.handling"] = new[] { "Управление", "Handling", "Maniabilite", "Handling", "???" }
-        };
+        private static Dictionary<string, LocalizationTranslationEntry> translationsByKey;
+        private static Dictionary<GameLanguage, string> languageNativeNames;
+        private static bool isLoaded;
 
         public static event Action LanguageChanged;
 
@@ -70,31 +31,138 @@ namespace TankGame.Menu
             if (string.IsNullOrWhiteSpace(key))
                 return string.Empty;
 
-            if (!Table.TryGetValue(key, out string[] values) || values == null || values.Length == 0)
+            EnsureLoaded();
+            if (translationsByKey == null || !translationsByKey.TryGetValue(key, out LocalizationTranslationEntry entry))
                 return key;
 
-            int index = Mathf.Clamp((int)CurrentLanguage, 0, values.Length - 1);
-            return values[index];
+            string localized = entry.Get(CurrentLanguage);
+            return string.IsNullOrEmpty(localized) ? key : localized;
         }
 
         public static string GetLanguageNativeName(GameLanguage language)
         {
+            EnsureLoaded();
+            if (languageNativeNames != null && languageNativeNames.TryGetValue(language, out string localizedName) && !string.IsNullOrEmpty(localizedName))
+                return localizedName;
+
+            return language.ToString();
+        }
+
+        public static int GetLanguageCount()
+        {
+            return Enum.GetValues(typeof(GameLanguage)).Length;
+        }
+
+        public static GameLanguage GetNextLanguage(GameLanguage current)
+        {
+            int count = GetLanguageCount();
+            int next = ((int)current + 1) % count;
+            return (GameLanguage)next;
+        }
+
+        public static GameLanguage GetPreviousLanguage(GameLanguage current)
+        {
+            int count = GetLanguageCount();
+            int previous = (int)current - 1;
+            if (previous < 0)
+                previous = count - 1;
+            return (GameLanguage)previous;
+        }
+
+        private static void EnsureLoaded()
+        {
+            if (isLoaded)
+                return;
+
+            isLoaded = true;
+            translationsByKey = new Dictionary<string, LocalizationTranslationEntry>(StringComparer.Ordinal);
+            languageNativeNames = new Dictionary<GameLanguage, string>();
+
+            TextAsset configAsset = Resources.Load<TextAsset>(LocalizationConfigPath);
+            if (configAsset == null)
+            {
+                Debug.LogWarning($"[LocalizationService] Missing localization config at Resources/{LocalizationConfigPath}.json");
+                return;
+            }
+
+            LocalizationConfigData config = JsonUtility.FromJson<LocalizationConfigData>(configAsset.text);
+            if (config == null)
+            {
+                Debug.LogWarning("[LocalizationService] Failed to parse localization config JSON.");
+                return;
+            }
+
+            if (config.entries != null)
+            {
+                for (int i = 0; i < config.entries.Length; i++)
+                {
+                    LocalizationTranslationEntry entry = config.entries[i];
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.key))
+                        continue;
+
+                    translationsByKey[entry.key] = entry;
+                }
+            }
+
+            if (config.languageNames != null)
+            {
+                for (int i = 0; i < config.languageNames.Length; i++)
+                {
+                    LocalizationLanguageNameEntry entry = config.languageNames[i];
+                    if (entry == null)
+                        continue;
+
+                    if (string.IsNullOrWhiteSpace(entry.nativeName))
+                        continue;
+
+                    languageNativeNames[entry.language] = entry.nativeName;
+                }
+            }
+        }
+    }
+
+    [Serializable]
+    public sealed class LocalizationConfigData
+    {
+        public LocalizationTranslationEntry[] entries;
+        public LocalizationLanguageNameEntry[] languageNames;
+    }
+
+    [Serializable]
+    public sealed class LocalizationTranslationEntry
+    {
+        public string key;
+        public string russian;
+        public string english;
+        public string french;
+        public string german;
+        public string japanese;
+
+        public string Get(GameLanguage language)
+        {
             switch (language)
             {
                 case GameLanguage.Russian:
-                    return "Русский";
+                    return russian;
                 case GameLanguage.English:
-                    return "English";
+                    return english;
                 case GameLanguage.French:
-                    return "Francais";
+                    return french;
                 case GameLanguage.German:
-                    return "Deutsch";
+                    return german;
                 case GameLanguage.Japanese:
-                    return "???";
+                    return japanese;
                 default:
-                    return "Русский";
+                    return russian;
             }
         }
+    }
+
+    [Serializable]
+    public sealed class LocalizationLanguageNameEntry
+    {
+        public GameLanguage language;
+        public string nativeName;
     }
 }
 

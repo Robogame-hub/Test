@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: de6c9e3a9150e1b4dba2cdffcc2e971d
+guid: 7dfb857abed828a4f839d2a0a4aed8da
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -110,13 +110,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Rectangle 80_0
+      name: Group 20_0
       rect:
         serializedVersion: 2
         x: 0
-        y: 0
-        width: 246
-        height: 99
+        y: 675
+        width: 64
+        height: 61
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -125,8 +125,52 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: aabb244f6a15d9d49b991e57755f540b
-      internalID: 121165822
+      spriteID: 829b6d62ed8094e4c981985cefb5c04f
+      internalID: 1819851684
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Group 20_1
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 318
+        width: 929
+        height: 119
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f46fb00a7b0c0ae4eb895da9c5842608
+      internalID: 1878872078
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Group 20_2
+      rect:
+        serializedVersion: 2
+        x: 1
+        y: 0
+        width: 1918
+        height: 5
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 2ef2ff906acd7704a88d166ccf925bbe
+      internalID: 2025535122
       vertices: []
       indices: 
       edges: []
@@ -135,7 +179,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 4d1b0c00ac56c86448ec9f6041a93e92
+    spriteID: c72854b6a3cd1c14dbfa9dd16c2ece4c
     internalID: 0
     vertices: []
     indices: 
@@ -147,7 +191,9 @@ TextureImporter:
       - key: SpriteEditor.SliceSettings
         value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":64.0,"y":64.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":0,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      Rectangle 80_0: 121165822
+      Group 20_0: 1819851684
+      Group 20_1: 1878872078
+      Group 20_2: 2025535122
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
