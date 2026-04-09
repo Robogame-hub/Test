@@ -650,15 +650,34 @@ namespace TankGame.Menu
 
         private void EnsurePreviewScanLine()
         {
-            RectTransform host = tankPreviewImage != null
+            RectTransform previewHost = tankPreviewImage != null
                 ? tankPreviewImage.rectTransform
                 : (previewRawImage != null ? previewRawImage.rectTransform : null);
 
-            if (host == null)
+            if (previewHost == null)
                 return;
 
+            RectTransform host = previewHost;
+            Canvas canvas = previewHost.GetComponentInParent<Canvas>();
+            if (canvas != null && canvas.rootCanvas != null)
+            {
+                RectTransform rootCanvasRect = canvas.rootCanvas.GetComponent<RectTransform>();
+                if (rootCanvasRect != null)
+                    host = rootCanvasRect;
+            }
+
             if (previewScanLineEffect != null && previewScanLineEffect.transform != host)
+            {
+                Destroy(previewScanLineEffect);
                 previewScanLineEffect = null;
+            }
+
+            if (host != previewHost)
+            {
+                PreviewScanLineEffect localPreviewEffect = previewHost.GetComponent<PreviewScanLineEffect>();
+                if (localPreviewEffect != null)
+                    Destroy(localPreviewEffect);
+            }
 
             if (previewScanLineEffect == null)
             {

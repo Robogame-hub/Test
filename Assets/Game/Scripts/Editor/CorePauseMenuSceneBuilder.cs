@@ -61,12 +61,15 @@ namespace TankGame.Editor
         {
             GameObject existing = GameObject.Find(CanvasName);
             if (existing != null)
-                return existing.GetComponent<Canvas>();
+            {
+                Canvas existingCanvas = existing.GetComponent<Canvas>();
+                ConfigureCanvas(existingCanvas);
+                return existingCanvas;
+            }
 
             GameObject go = new GameObject(CanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             Canvas canvas = go.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
+            ConfigureCanvas(canvas);
 
             CanvasScaler scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -74,6 +77,26 @@ namespace TankGame.Editor
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
             return canvas;
+        }
+
+        private static void ConfigureCanvas(Canvas canvas)
+        {
+            if (canvas == null)
+                return;
+
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.sortingOrder = 10;
+            canvas.planeDistance = 1f;
+            canvas.worldCamera = ResolveUiCamera();
+        }
+
+        private static Camera ResolveUiCamera()
+        {
+            Camera main = Camera.main;
+            if (main != null)
+                return main;
+
+            return Object.FindFirstObjectByType<Camera>(FindObjectsInactive.Exclude);
         }
 
         private static void RebuildPauseUi(Transform canvasTransform)
