@@ -1,6 +1,6 @@
 ﻿# AGENT_MEMORY
 
-Last updated: 2026-04-10
+Last updated: 2026-04-13
 Workspace: `D:\PROJECTS\Test\Test`
 
 ## Purpose
@@ -167,3 +167,36 @@ I should read this first before making changes.
     - Added `Assets/Resources/Menu/LocalizationConfig.json` (+ `.meta`) as the source of truth for all localized keys and language native names.
     - Refactored `Assets/Game/Scripts/Menu/LocalizationService.cs` to load translations from the JSON config at runtime (`Resources/Menu/LocalizationConfig`), replacing the inline dictionary/switch text tables.
     - Updated language switching logic in `Assets/Game/Scripts/Menu/MainMenuController.cs` and `Assets/Game/Scripts/Menu/BattlePauseMenuController.cs` to use `LocalizationService.GetNextLanguage/GetPreviousLanguage` (removed hardcoded `% 5`/`next=4` assumptions).
+  - Added dedicated black/white post-process preset for Core scene and preserved current preset for easy switching:
+    - Preserved current profile (warm/retro preset) as `Assets/Scenes/Core/DesertVolume.asset` (guid `fe83e4c64f5ef0943886cdcd410fafa2`).
+    - Created `Assets/Scenes/Core/DesertVolume_BW.asset` (guid `7a8e1c3aefc8464ca2d29ca95f2d7511`) with grayscale-focused settings:
+      - `ColorAdjustments`: exposure `-0.2`, contrast `48`, saturation `-100`, neutral color filter.
+      - `WhiteBalance`: temperature/tint set to `0`.
+      - `ShadowsMidtonesHighlights`: neutralized to near-monochrome values.
+      - `Vignette`: near-black vignette color.
+      - `Bloom`: white tint, reduced intensity.
+      - `LensDistortion` and `FilmGrain`: kept for CRT feel; `DepthOfField` disabled.
+    - Switched `Global Volume` in `Assets/Scenes/Core.unity` to use the B/W profile by default.
+    - Quick rollback path: set `Global Volume -> sharedProfile` back to `DesertVolume.asset` (warm preset).
+  - Tuned B/W preset to reduce darkness and soften vignette after playtest feedback:
+    - `ColorAdjustments`: exposure increased to `0.18`, contrast reduced to `34`.
+    - `ShadowsMidtonesHighlights`: lifted shadows/midtones for better dark-area readability.
+    - `Vignette`: softened from heavy edge darkening to lighter settings (`color ~0.08`, `intensity 0.24`, `smoothness 0.68`).
+    - `Bloom`: slightly raised to `0.08` to keep highlights readable in monochrome mode.
+  - Retuned `Assets/Scenes/Core/DesertVolume_BW.asset` to match tactical blue UI palette:
+    - Shifted grading from pure B/W to cool blue tone (`ColorFilter ~0.78/0.86/1`, `HueShift -6`, `Saturation -52`).
+    - Cooled white balance (`temperature -24`, `tint +8`) and adjusted shadows/midtones/highlights toward blue.
+    - Updated vignette to dark blue (`0.015, 0.04, 0.13`) and retuned bloom tint to blue (`0.32, 0.53, 1`).
+  - Synced Core scene fog and lighting to the same blue tactical palette so gameplay does not look disconnected from menu/UI:
+    - `RenderSettings` in `Assets/Scenes/Core.unity`: blue fog (`0.039, 0.078, 0.196`, density `0.0105`), blue ambient gradient (sky/equator/ground), ambient intensity reduced to `0.64`, reflection intensity reduced to `0.5`, subtractive shadow color shifted to deep blue.
+    - `Directional Light` in `Assets/Scenes/Core.unity`: color changed to cool blue (`0.529, 0.647, 1`), intensity `0.42`, shadow strength/bias tuned (`0.93 / 0.04 / 0.28`), bounce intensity reduced to `0.75`.
+- 2026-04-13:
+  - Reworked MainMenu sandbox match panel to be scene-authored/editable (no runtime UI construction):
+    - `Assets/Game/Scripts/Menu/MainMenuController.cs` no longer creates `SandboxMatchPanel`/controls at runtime.
+    - Added scene-reference-first flow (`EnsureSandboxMatchPanelReference`, `EnsureSandboxMatchUiReferences`) with warnings when expected controls are missing.
+    - Preserved existing behavior for panel switching and bot count interactions through bound scene controls.
+  - Added/serialized concrete sandbox UI hierarchy directly in `Assets/Scenes/MainMenu.unity`:
+    - `SandboxMatchPanel`, `SandboxTitle`, `SandboxBotCountRow`, `SandboxBotCountLabel`, `SandboxBotsPrevButton`, `SandboxBotCountValueText`, `SandboxBotsNextButton`, `StartSandboxMatchButton`, `BackFromSandboxMatchButton`.
+    - Wired `MainMenuController` serialized references to these scene objects so panel is editable in-editor without builders.
+  - Localization config source of truth remains:
+    - `Assets/Resources/Menu/LocalizationConfig.json`.

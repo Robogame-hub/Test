@@ -96,6 +96,7 @@ namespace TankGame.Menu
         {
             MenuMusicPlayer.EnsureInstance();
             EnsureSettingsPanelAsSibling();
+            EnsureSandboxMatchPanelReference();
             EnsureSandboxPanelAsSibling();
             EnsureSandboxMatchUiReferences();
             inputSettings = InputSettings.Instance;
@@ -153,7 +154,7 @@ namespace TankGame.Menu
 
         private void InitSandboxMatchPanel()
         {
-            EnsureSandboxMatchPanelExists();
+            EnsureSandboxMatchPanelReference();
             EnsureSandboxPanelAsSibling();
             EnsureSandboxMatchUiReferences();
             RebindSandboxMatchButtons();
@@ -180,47 +181,19 @@ namespace TankGame.Menu
             RefreshSandboxBotCountLabel();
         }
 
-        private void EnsureSandboxMatchPanelExists()
+        private void EnsureSandboxMatchPanelReference()
         {
-            if (sandboxMatchPanel != null || mainPanel == null)
+            if (sandboxMatchPanel != null)
                 return;
 
-            Transform parent = mainPanel.transform.parent;
-            if (parent == null)
-                return;
-
-            sandboxMatchPanel = new GameObject("SandboxMatchPanel", typeof(RectTransform), typeof(Image));
-            sandboxMatchPanel.transform.SetParent(parent, false);
-
-            RectTransform panelRt = sandboxMatchPanel.GetComponent<RectTransform>();
-            RectTransform mainRt = mainPanel.GetComponent<RectTransform>();
-            if (mainRt != null)
-            {
-                panelRt.anchorMin = mainRt.anchorMin;
-                panelRt.anchorMax = mainRt.anchorMax;
-                panelRt.pivot = mainRt.pivot;
-                panelRt.anchoredPosition = Vector2.zero;
-                panelRt.sizeDelta = Vector2.zero;
-                panelRt.offsetMin = Vector2.zero;
-                panelRt.offsetMax = Vector2.zero;
-            }
-
-            Image panelImage = sandboxMatchPanel.GetComponent<Image>();
-            panelImage.color = new Color(0f, 0f, 0f, 0f);
-
-            VerticalLayoutGroup layout = sandboxMatchPanel.AddComponent<VerticalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleLeft;
-            layout.spacing = 16f;
-            layout.padding = new RectOffset(48, 16, 60, 60);
-            layout.childControlWidth = true;
-            layout.childControlHeight = false;
-
-            CreateSandboxPanelDefaultUi();
-            sandboxMatchPanel.SetActive(false);
+            sandboxMatchPanel = GameObject.Find("SandboxMatchPanel");
+            if (sandboxMatchPanel == null)
+                Debug.LogWarning("[MainMenuController] SandboxMatchPanel not found in scene. Create it in MainMenu scene to edit it manually.");
         }
 
         private void EnsureSandboxMatchUiReferences()
         {
+            EnsureSandboxMatchPanelReference();
             if (sandboxMatchPanel == null)
                 return;
 
@@ -249,67 +222,7 @@ namespace TankGame.Menu
                 && backFromSandboxMatchButton != null;
 
             if (!hasAll)
-                CreateSandboxPanelDefaultUi();
-        }
-
-        private void CreateSandboxPanelDefaultUi()
-        {
-            if (sandboxMatchPanel == null)
-                return;
-
-            Transform panel = sandboxMatchPanel.transform;
-            TMP_Text title = FindInChildrenByName<TMP_Text>(panel, "SandboxTitle");
-            if (title == null)
-            {
-                title = CreateRuntimeLabel(panel, "SandboxTitle", LocalizationService.Get("sandbox.title"), 48f, FontStyles.Bold);
-                AddLocalizedKey(title.gameObject, "sandbox.title");
-                SetPreferredHeight(title.gameObject, 72f);
-            }
-
-            Transform row = panel.Find("SandboxBotCountRow");
-            if (row == null)
-            {
-                GameObject rowObj = new GameObject("SandboxBotCountRow", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-                rowObj.transform.SetParent(panel, false);
-                HorizontalLayoutGroup rowLayout = rowObj.GetComponent<HorizontalLayoutGroup>();
-                rowLayout.childAlignment = TextAnchor.MiddleLeft;
-                rowLayout.spacing = 10f;
-                rowLayout.childControlWidth = false;
-                rowLayout.childControlHeight = true;
-                rowLayout.childForceExpandWidth = false;
-                rowLayout.childForceExpandHeight = false;
-                SetPreferredHeight(rowObj, 62f);
-
-                TMP_Text label = CreateRuntimeLabel(rowObj.transform, "SandboxBotCountLabel", LocalizationService.Get("sandbox.bot_count"), 30f, FontStyles.Normal);
-                AddLocalizedKey(label.gameObject, "sandbox.bot_count");
-                SetPreferredWidth(label.gameObject, 160f);
-                row = rowObj.transform;
-            }
-
-            if (sandboxBotsPrevButton == null)
-                sandboxBotsPrevButton = CreateRuntimeButton(row, "SandboxBotsPrevButton", "<", 70f, 56f, 30f);
-
-            if (sandboxBotCountValueText == null)
-            {
-                sandboxBotCountValueText = CreateRuntimeLabel(row, "SandboxBotCountValueText", "0", 30f, FontStyles.Bold);
-                sandboxBotCountValueText.alignment = TextAlignmentOptions.Center;
-                SetPreferredWidth(sandboxBotCountValueText.gameObject, 90f);
-            }
-
-            if (sandboxBotsNextButton == null)
-                sandboxBotsNextButton = CreateRuntimeButton(row, "SandboxBotsNextButton", ">", 70f, 56f, 30f);
-
-            if (startSandboxMatchButton == null)
-            {
-                startSandboxMatchButton = CreateRuntimeButton(panel, "StartSandboxMatchButton", LocalizationService.Get("menu.start_match"), 360f, 74f, 28f);
-                AddLocalizedKey(startSandboxMatchButton.GetComponentInChildren<TMP_Text>(true)?.gameObject, "menu.start_match");
-            }
-
-            if (backFromSandboxMatchButton == null)
-            {
-                backFromSandboxMatchButton = CreateRuntimeButton(panel, "BackFromSandboxMatchButton", LocalizationService.Get("menu.back"), 260f, 74f, 28f);
-                AddLocalizedKey(backFromSandboxMatchButton.GetComponentInChildren<TMP_Text>(true)?.gameObject, "menu.back");
-            }
+                Debug.LogWarning("[MainMenuController] SandboxMatchPanel is missing required controls. Expected: SandboxBotsPrevButton, SandboxBotCountValueText, SandboxBotsNextButton, StartSandboxMatchButton, BackFromSandboxMatchButton.");
         }
 
         private void RebindSandboxMatchButtons()
@@ -350,79 +263,6 @@ namespace TankGame.Menu
             ApplyNonClickableTextColor();
         }
 
-        private static void SetPreferredHeight(GameObject target, float height)
-        {
-            if (target == null)
-                return;
-
-            LayoutElement le = target.GetComponent<LayoutElement>();
-            if (le == null)
-                le = target.AddComponent<LayoutElement>();
-
-            le.minHeight = height;
-            le.preferredHeight = height;
-        }
-
-        private static void SetPreferredWidth(GameObject target, float width)
-        {
-            if (target == null)
-                return;
-
-            LayoutElement le = target.GetComponent<LayoutElement>();
-            if (le == null)
-                le = target.AddComponent<LayoutElement>();
-
-            le.minWidth = width;
-            le.preferredWidth = width;
-        }
-
-        private TMP_Text CreateRuntimeLabel(Transform parent, string name, string text, float fontSize, FontStyles style)
-        {
-            GameObject go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
-
-            TMP_Text label = go.GetComponent<TMP_Text>();
-            label.text = text;
-            label.fontSize = fontSize;
-            label.fontStyle = style;
-            label.alignment = TextAlignmentOptions.MidlineLeft;
-            label.color = GetStaticTextColor();
-
-            LayoutElement le = go.GetComponent<LayoutElement>();
-            le.minHeight = Mathf.Max(32f, fontSize + 8f);
-            le.preferredHeight = Mathf.Max(32f, fontSize + 8f);
-            return label;
-        }
-
-        private Button CreateRuntimeButton(Transform parent, string name, string text, float width = 320f, float height = 64f, float fontSize = 28f)
-        {
-            GameObject buttonObj = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            buttonObj.transform.SetParent(parent, false);
-            buttonObj.GetComponent<Image>().color = GetButtonBackgroundNormalColor();
-
-            LayoutElement buttonLe = buttonObj.GetComponent<LayoutElement>();
-            buttonLe.minHeight = height;
-            buttonLe.preferredHeight = height;
-            buttonLe.minWidth = width;
-            buttonLe.preferredWidth = width;
-
-            GameObject textObj = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
-            textObj.transform.SetParent(buttonObj.transform, false);
-            RectTransform textRt = textObj.GetComponent<RectTransform>();
-            textRt.anchorMin = Vector2.zero;
-            textRt.anchorMax = Vector2.one;
-            textRt.offsetMin = Vector2.zero;
-            textRt.offsetMax = Vector2.zero;
-
-            TMP_Text tmp = textObj.GetComponent<TMP_Text>();
-            tmp.text = text;
-            tmp.fontSize = fontSize;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = GetButtonNormalColor();
-
-            return buttonObj.GetComponent<Button>();
-        }
-
         private static T FindInChildrenByName<T>(Transform root, string name) where T : Component
         {
             if (root == null || string.IsNullOrWhiteSpace(name))
@@ -436,17 +276,6 @@ namespace TankGame.Menu
             }
 
             return null;
-        }
-
-        private static void AddLocalizedKey(GameObject target, string key)
-        {
-            if (target == null || string.IsNullOrWhiteSpace(key))
-                return;
-
-            LocalizedText localized = target.GetComponent<LocalizedText>();
-            if (localized == null)
-                localized = target.AddComponent<LocalizedText>();
-            localized.SetKey(key);
         }
 
         private void RefreshSandboxBotCountLabel()
@@ -859,7 +688,7 @@ namespace TankGame.Menu
 
         public void ShowSandboxMatchPanel()
         {
-            EnsureSandboxMatchPanelExists();
+            EnsureSandboxMatchPanelReference();
             EnsureSandboxPanelAsSibling();
             EnsureSandboxMatchUiReferences();
             RebindSandboxMatchButtons();
