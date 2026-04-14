@@ -17,14 +17,13 @@ namespace TankGame.EditorTools
         private static readonly Color ButtonColor = new Color(0.27f, 0.17f, 0.10f, 0.88f);
         private static readonly Color TextGreen = new Color(0.96f, 0.86f, 0.67f, 1f);
 
-        [MenuItem("TankGame/Scenes/Create MainMenu + Lobby")]
-        public static void CreateMainAndLobbyScenes()
+        [MenuItem("TankGame/Scenes/Create MainMenu (Legacy)")]
+        public static void CreateMainMenuLegacy()
         {
             CreateMainMenuScene();
-            CreateLobbyScene();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[MainMenuSceneBuilder] Created/updated MainMenu and Lobby scenes.");
+            Debug.Log("[MainMenuSceneBuilder] Created/updated MainMenu scene.");
         }
 
         [MenuItem("TankGame/Scenes/Create MainMenu")]
@@ -180,97 +179,6 @@ namespace TankGame.EditorTools
             SetupMenuMusic();
 
             string scenePath = "Assets/Scenes/MainMenu.unity";
-            EditorSceneManager.SaveScene(scene, scenePath);
-        }
-
-        [MenuItem("TankGame/Scenes/Create Lobby")]
-        public static void CreateLobbyScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "Lobby";
-
-            EnsureEventSystem();
-            CreateCamera();
-
-            Canvas canvas = CreateCanvas("LobbyCanvas");
-
-            GameObject root = CreatePanel("LobbyRoot", canvas.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
-            VerticalLayoutGroup rootLayout = root.AddComponent<VerticalLayoutGroup>();
-            rootLayout.padding = new RectOffset(40, 40, 40, 40);
-            rootLayout.spacing = 12f;
-            rootLayout.childAlignment = TextAnchor.UpperLeft;
-            rootLayout.childControlWidth = true;
-            rootLayout.childControlHeight = false;
-
-            TMP_Text title = CreateLabel("LobbyTitle", root.transform, "lobby.title", 46f, FontStyles.Bold);
-            SetElementHeight(title.gameObject, 62f);
-
-            TMP_Text roomsLabel = CreateLabel("RoomsLabel", root.transform, "lobby.rooms", 30f, FontStyles.Bold);
-            SetElementHeight(roomsLabel.gameObject, 40f);
-
-            GameObject nickRow = CreateRow("NicknameRow", root.transform);
-            TMP_Text nickLabel = CreateLabel("NicknameLabel", nickRow.transform, "lobby.nickname", 22f, FontStyles.Normal);
-            LayoutElement nickLabelLE = nickLabel.gameObject.AddComponent<LayoutElement>();
-            nickLabelLE.preferredWidth = 140f;
-            nickLabelLE.minWidth = 140f;
-            TMP_InputField nicknameInput = CreateInputField("NicknameInput", nickRow.transform, 360f, 44f);
-
-            GameObject scrollRoot = CreatePanel("RoomList", root.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
-            SetElementHeight(scrollRoot, 420f);
-            ScrollRect scrollRect = scrollRoot.AddComponent<ScrollRect>();
-            Image scrollBg = scrollRoot.GetComponent<Image>();
-            scrollBg.color = new Color(0f, 0f, 0f, 0.2f);
-
-            GameObject viewport = CreatePanel("Viewport", scrollRoot.transform, new Vector2(0f, 0f), new Vector2(1f, 1f));
-            viewport.AddComponent<Mask>().showMaskGraphic = false;
-            Image vpImg = viewport.GetComponent<Image>();
-            vpImg.color = new Color(1f, 1f, 1f, 0.05f);
-
-            GameObject content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            RectTransform contentRt = content.GetComponent<RectTransform>();
-            contentRt.anchorMin = new Vector2(0f, 1f);
-            contentRt.anchorMax = new Vector2(1f, 1f);
-            contentRt.pivot = new Vector2(0.5f, 1f);
-            contentRt.offsetMin = new Vector2(8f, 0f);
-            contentRt.offsetMax = new Vector2(-8f, 0f);
-            VerticalLayoutGroup contentLayout = content.AddComponent<VerticalLayoutGroup>();
-            contentLayout.spacing = 8f;
-            contentLayout.childControlWidth = true;
-            contentLayout.childControlHeight = false;
-            contentLayout.childAlignment = TextAnchor.UpperLeft;
-            ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
-            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            scrollRect.viewport = viewport.GetComponent<RectTransform>();
-            scrollRect.content = contentRt;
-            scrollRect.horizontal = false;
-            scrollRect.vertical = true;
-
-            TMP_Text noRoomsText = CreateLabel("NoRooms", root.transform, "lobby.no_rooms", 22f, FontStyles.Normal);
-            SetElementHeight(noRoomsText.gameObject, 32f);
-
-            GameObject buttonsRow = CreateRow("ButtonsRow", root.transform);
-            Button refreshButton = CreateMenuButton(buttonsRow.transform, "RefreshButton", "lobby.refresh", 220f, 60f);
-            Button createRoomButton = CreateMenuButton(buttonsRow.transform, "CreateButton", "lobby.create_room", 280f, 60f);
-            Button backButton = CreateMenuButton(buttonsRow.transform, "BackButton", "menu.back", 180f, 60f);
-
-            GameObject roomEntryTemplate = CreateRoomEntryTemplate(content.transform);
-            roomEntryTemplate.SetActive(false);
-
-            LobbyController lobby = new GameObject("LobbyController").AddComponent<LobbyController>();
-            lobby.transform.SetParent(canvas.transform, false);
-            lobby.roomListContainer = content.transform;
-            lobby.roomEntryPrefab = roomEntryTemplate;
-            lobby.emptyRoomsText = noRoomsText;
-            lobby.refreshButton = refreshButton;
-            lobby.nicknameInputField = nicknameInput;
-            lobby.createRoomButton = createRoomButton;
-            lobby.backButton = backButton;
-
-            SetupMenuMusic();
-
-            string scenePath = "Assets/Scenes/Lobby.unity";
             EditorSceneManager.SaveScene(scene, scenePath);
         }
 

@@ -1,0 +1,38 @@
+﻿{
+  "battleSceneName": "Core",
+  "defaultNickname": "Player",
+  "initialDebugRooms": [
+    {
+      "roomNameKey": "lobby.debug_room_open",
+      "fallbackRoomName": "Debug Room",
+      "currentPlayers": 0,
+      "maxPlayers": 6,
+      "isPasswordProtected": false,
+      "password": ""
+    },
+    {
+      "roomNameKey": "lobby.debug_room_locked",
+      "fallbackRoomName": "Locked Debug Room",
+      "currentPlayers": 0,
+      "maxPlayers": 6,
+      "isPasswordProtected": true,
+      "password": "1234"
+    },
+    {
+      "roomNameKey": "",
+      "fallbackRoomName": "Debug Room Extra",
+      "currentPlayers": 0,
+      "maxPlayers": 6,
+      "isPasswordProtected": false,
+      "password": ""
+    },
+    {
+      "roomNameKey": "",
+      "fallbackRoomName": "Locked Debug Room 111",
+      "currentPlayers": 0,
+      "maxPlayers": 6,
+      "isPasswordProtected": true,
+      "password": "111"
+    }
+  ]
+}

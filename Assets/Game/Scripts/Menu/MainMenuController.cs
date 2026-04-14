@@ -4,6 +4,7 @@ using TankGame.Session;
 using TankGame.Settings;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 #if UNITY_EDITOR
@@ -12,11 +13,12 @@ using UnityEditor.SceneManagement;
 
 namespace TankGame.Menu
 {
-    public class MainMenuController : MonoBehaviour
+    public partial class MainMenuController : MonoBehaviour
     {
         [Header("Scene Names")]
-        [Tooltip("РРјСЏ СЃС†РµРЅС‹ Р»РѕР±Р±Рё РґР»СЏ РєРЅРѕРїРєРё 'РРіСЂР°С‚СЊ'.")]
-        public string lobbySceneName = "Lobby";
+        [Tooltip("РРјСЏ СЃС†РµРЅС‹ Р±РѕСЏ РґР»СЏ РїРµСЂРµС…РѕРґР° РёР· Р»РѕР±Р±Рё.")]
+        [FormerlySerializedAs("lobbySceneName")]
+        public string gameSceneName = "Core";
         [Tooltip("РРјСЏ СЃС†РµРЅС‹ РїРµСЃРѕС‡РЅРёС†С‹/РјР°С‚С‡Р° РґР»СЏ РєРЅРѕРїРєРё 'РџРµСЃРѕС‡РЅРёС†Р°'.")]
         public string sandboxSceneName = "Core";
 
@@ -109,6 +111,7 @@ namespace TankGame.Menu
             InitSettingsPanel();
             HideUnsupportedSensitivityControls();
             InitSandboxMatchPanel();
+            InitializeLobbyMenu();
             ApplySliderVisuals();
             ApplyNonClickableTextColor();
             ShowMainPanel();
@@ -116,6 +119,7 @@ namespace TankGame.Menu
 
         private void OnDestroy()
         {
+            DisposeLobbyMenu();
             UnhookButtons();
             UnhookSettingsEvents();
         }
@@ -672,6 +676,7 @@ namespace TankGame.Menu
                 settingsPanel.SetActive(false);
             if (sandboxMatchPanel != null)
                 sandboxMatchPanel.SetActive(false);
+            HideAllLobbyPanels();
             if (mainPanel != null)
                 mainPanel.SetActive(true);
         }
@@ -682,6 +687,7 @@ namespace TankGame.Menu
                 settingsPanel.SetActive(true);
             if (sandboxMatchPanel != null)
                 sandboxMatchPanel.SetActive(false);
+            HideAllLobbyPanels();
             if (mainPanel != null)
                 mainPanel.SetActive(false);
         }
@@ -702,6 +708,7 @@ namespace TankGame.Menu
 
             if (settingsPanel != null)
                 settingsPanel.SetActive(false);
+            HideAllLobbyPanels();
             sandboxMatchPanel.SetActive(true);
             if (mainPanel != null)
                 mainPanel.SetActive(false);
@@ -712,8 +719,7 @@ namespace TankGame.Menu
 
         private void OnPlayClicked()
         {
-            GameSessionSettings.PrepareLobby();
-            LoadConfiguredScene(lobbySceneName, "Assets/Scenes/Lobby.unity");
+            ShowLobbyPanel();
         }
 
         private void StartSandboxMatch()

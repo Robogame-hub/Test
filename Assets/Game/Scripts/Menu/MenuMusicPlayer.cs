@@ -18,7 +18,7 @@ namespace TankGame.Menu
 
         [Header("Scenes")]
         [Tooltip("Сцены, в которых музыка должна играть.")]
-        [SerializeField] private string[] menuSceneNames = { "MainMenu", "Lobby" };
+        [SerializeField] private string[] menuSceneNames = { "MainMenu" };
 
         private AudioSource source;
 
@@ -109,7 +109,7 @@ namespace TankGame.Menu
         private bool IsMenuScene(string sceneName)
         {
             if (menuSceneNames == null || menuSceneNames.Length == 0)
-                return sceneName == "MainMenu" || sceneName == "Lobby";
+                return sceneName == "MainMenu";
 
             for (int i = 0; i < menuSceneNames.Length; i++)
             {

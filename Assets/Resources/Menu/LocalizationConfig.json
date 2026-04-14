@@ -153,6 +153,94 @@
       "japanese": "??"
     },
     {
+      "key": "lobby.connect",
+      "russian": "Подключиться",
+      "english": "Connect",
+      "french": "Connecter",
+      "german": "Verbinden",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.select_room",
+      "russian": "Выбрать",
+      "english": "Select",
+      "french": "Selectionner",
+      "german": "Auswahlen",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.selected",
+      "russian": "Выбрано",
+      "english": "Selected",
+      "french": "Selectionne",
+      "german": "Ausgewahlt",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.room_name",
+      "russian": "Название лобби",
+      "english": "Lobby name",
+      "french": "Nom du lobby",
+      "german": "Lobby-Name",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.password",
+      "russian": "Пароль",
+      "english": "Password",
+      "french": "Mot de passe",
+      "german": "Passwort",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.password_toggle_on",
+      "russian": "Запароленная: Да",
+      "english": "Password: On",
+      "french": "Mot de passe: Oui",
+      "german": "Passwort: Ein",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.password_toggle_off",
+      "russian": "Запароленная: Нет",
+      "english": "Password: Off",
+      "french": "Mot de passe: Non",
+      "german": "Passwort: Aus",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.password_field_missing",
+      "russian": "Поле пароля не найдено",
+      "english": "Password field missing",
+      "french": "Champ mot de passe absent",
+      "german": "Passwortfeld fehlt",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.wrong_password",
+      "russian": "Пароль неверный",
+      "english": "Wrong password",
+      "french": "Mot de passe incorrect",
+      "german": "Falsches Passwort",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.debug_room_open",
+      "russian": "Debug Room",
+      "english": "Debug Room",
+      "french": "Debug Room",
+      "german": "Debug Room",
+      "japanese": "??"
+    },
+    {
+      "key": "lobby.debug_room_locked",
+      "russian": "Locked Debug Room",
+      "english": "Locked Debug Room",
+      "french": "Locked Debug Room",
+      "german": "Locked Debug Room",
+      "japanese": "??"
+    },
+    {
       "key": "sandbox.title",
       "russian": "Условия матча",
       "english": "Match settings",

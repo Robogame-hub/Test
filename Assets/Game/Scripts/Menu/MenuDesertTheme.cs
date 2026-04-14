@@ -7,12 +7,11 @@ using UnityEngine.UI;
 namespace TankGame.Menu
 {
     /// <summary>
-    /// Applies a warm desert visual pass to MainMenu/Lobby/Core pause UI without changing scene object bindings.
+    /// Applies a warm desert visual pass to MainMenu/Core pause UI without changing scene object bindings.
     /// </summary>
     public static class MenuDesertTheme
     {
         private const string MainMenuSceneName = "MainMenu";
-        private const string LobbySceneName = "Lobby";
         private const string CoreSceneName = "Core";
 
         private static readonly Color PanelPrimary = new Color(0.13f, 0.08f, 0.05f, 0.78f);
@@ -46,12 +45,6 @@ namespace TankGame.Menu
             if (scene.name == MainMenuSceneName)
             {
                 ApplyMainMenu(scene);
-                return;
-            }
-
-            if (scene.name == LobbySceneName)
-            {
-                ApplyLobby(scene);
                 return;
             }
 
@@ -147,52 +140,6 @@ namespace TankGame.Menu
             StyleSlidersInHierarchy(canvas);
             StyleTextHierarchy(canvas);
             StyleStatBars(scene);
-        }
-
-        private static void ApplyLobby(Scene scene)
-        {
-            bool portrait = IsPortrait();
-            float rightAnchor = portrait ? 0.96f : 0.58f;
-
-            SetPanelAnchors(scene, "LobbyRoot", new Vector2(0.04f, 0.08f), new Vector2(rightAnchor, 0.92f));
-
-            GameObject lobbyRoot = FindSceneObjectByName(scene, "LobbyRoot");
-            GameObject roomList = FindSceneObjectByName(scene, "RoomList");
-            GameObject viewport = FindSceneObjectByName(scene, "Viewport");
-            GameObject template = FindSceneObjectByName(scene, "RoomEntryTemplate");
-
-            SetImageColor(lobbyRoot, PanelPrimary);
-            SetImageColor(roomList, PanelInset);
-            SetImageColor(viewport, new Color(0.3f, 0.2f, 0.12f, 0.24f));
-            EnsureAccentLine(lobbyRoot, "DesertTopLine");
-
-            if (roomList != null)
-            {
-                LayoutElement roomListLayout = roomList.GetComponent<LayoutElement>();
-                if (roomListLayout != null)
-                {
-                    float targetHeight = portrait ? 330f : 420f;
-                    roomListLayout.minHeight = targetHeight;
-                    roomListLayout.preferredHeight = targetHeight;
-                }
-            }
-
-            TuneVerticalLayout(lobbyRoot, portrait ? new RectOffset(24, 24, 22, 22) : new RectOffset(36, 36, 30, 30), portrait ? 10f : 12f, TextAnchor.UpperLeft);
-
-            StyleButtonByName(scene, "RefreshButton");
-            StyleButtonByName(scene, "CreateButton");
-            StyleButtonByName(scene, "BackButton");
-            StyleButtonByName(scene, "JoinButton");
-
-            if (template != null)
-                ApplyRoomEntry(template);
-
-            GameObject canvas = FindSceneObjectByName(scene, "LobbyCanvas");
-            StyleTextHierarchy(canvas);
-
-            GameObject nicknameInput = FindSceneObjectByName(scene, "NicknameInput");
-            if (nicknameInput != null && nicknameInput.TryGetComponent(out TMP_InputField inputField))
-                StyleInputField(inputField);
         }
 
         private static void ApplyCorePause(Scene scene)

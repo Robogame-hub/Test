@@ -198,5 +198,13 @@ I should read this first before making changes.
   - Added/serialized concrete sandbox UI hierarchy directly in `Assets/Scenes/MainMenu.unity`:
     - `SandboxMatchPanel`, `SandboxTitle`, `SandboxBotCountRow`, `SandboxBotCountLabel`, `SandboxBotsPrevButton`, `SandboxBotCountValueText`, `SandboxBotsNextButton`, `StartSandboxMatchButton`, `BackFromSandboxMatchButton`.
     - Wired `MainMenuController` serialized references to these scene objects so panel is editable in-editor without builders.
+- 2026-04-14:
+  - Locked in rule for lobby UI: no runtime layout generation/reparenting/builders for `LobbyPanel`, `LobbyCreatePanel`, `LobbyPasswordPanel`; these panels must stay scene-authored and manually editable.
+  - Removed runtime lobby layout mutations from `Assets/Game/Scripts/Menu/MainMenuController.Lobby.cs`:
+    - deleted runtime row reparenting (`SetParent`) between lobby/create/password panels;
+    - deleted runtime child-hiding layout pass (`HideChildByName` on panel children);
+    - removed shared password-row shuttling logic between create/password panels;
+    - lobby room rows are now read only from prebuilt children of `LobbyPanel/RoomList/Viewport/Content`.
+  - Verified all three lobby panel root `RectTransform` blocks in `Assets/Scenes/MainMenu.unity` (`LobbyPanel`, `LobbyCreatePanel`, `LobbyPasswordPanel`) are aligned to the same `LeftPanel` anchors/size values.
   - Localization config source of truth remains:
     - `Assets/Resources/Menu/LocalizationConfig.json`.
